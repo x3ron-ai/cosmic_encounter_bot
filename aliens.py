@@ -375,5 +375,6 @@ essence_aliens = {
     "кошмар": "essence_aliens/koshmar_karti.jpg",
     "няня": "essence_aliens/nyanya_karti.jpg",
     "шериф": "essence_aliens/sherif_karti.jpg",
-    "шизоид": "essence_aliens/shizoid_karti.jpg"
+    "шизоид": "essence_aliens/shizoid_karti.jpg",
+    "захватчик":"essence_aliens/zahvatchik_karti.jpg"
 }
