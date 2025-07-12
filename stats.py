@@ -39,6 +39,12 @@ def create_game(comment, dlc_list, creator_id):
 			cur.execute("INSERT INTO games (comment, dlc, creator_id) VALUES (%s, %s, %s) RETURNING id", (comment, dlc_str, creator_id))
 			return cur.fetchone()['id']
 
+def get_game(game_id):
+	with get_connection() as conn:
+		with conn.cursor() as cur:
+			cur.execute("SELECT * FROM games WHERE id=%s", (game_id,))
+			return cur.fetchone()
+
 def list_games():
 	with get_connection() as conn:
 		with conn.cursor() as cur:
@@ -76,6 +82,12 @@ def get_game_players(game_id):
 				WHERE game_id = %s
 			""", (game_id,))
 			return cur.fetchall()
+
+def mark_game_as_over(game_id):
+	with get_connection() as conn:
+		with conn.cursor() as cur:
+			cur.execute("UPDATE games SET is_over = TRUE WHERE id=%s", (game_id,))
+			return 'emae'
 
 def get_game_winners(game_id):
 	with get_connection() as conn:

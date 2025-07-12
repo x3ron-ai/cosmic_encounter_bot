@@ -118,10 +118,10 @@ def generate_updated_winner_keyboard(game_id, chat_id):
 	keyboard.add(InlineKeyboardButton("✅ Завершить игру", callback_data=f"finalize_game:{game_id}"))
 	return keyboard
 
-def send_rating_request(chat_id, game_id, player_id):
+def send_rating_request(chat_id, game_id, player_id, is_winner):
 	keyboard = InlineKeyboardMarkup(row_width=5)
 	for i in range(1, 6):
-		keyboard.add(InlineKeyboardButton(f"{i} ⭐", callback_data=f"rate:{game_id}:{player_id}:{i}"))
+		keyboard.add(InlineKeyboardButton(f"{i} ⭐", callback_data=f"rate:{game_id}:{player_id}:{is_winner}:{i}"))
 	bot.send_message(chat_id, "Оцените игру (1-5 звезд):", reply_markup=keyboard)
 
 @bot.message_handler(commands=['site'])
@@ -132,11 +132,11 @@ def site_message(message):
 def send_welcome(message):
 	try:
 		add_player(message.from_user.id)
-		bot.reply_to(message, "Напиши нужного пришельца или выбери его в /menu")
+		bot.reply_to(message, "Напиши нужного пришельца или выбери его в /aliens")
 	except Exception as e:
 		logging.error(f"Ошибка в send_welcome: {e}")
 
-@bot.message_handler(commands=['menu'])
+@bot.message_handler(commands=['aliens'])
 def menu_handler(message):
 	send_alien_page(chat_id=message.chat.id, message_id=None, page=0)
 
@@ -170,8 +170,8 @@ def user_profile(message):
 		if alien_games == []: continue
 		alien_winrate = winrate_calculator(alien_games)
 		alien_avg_est = average_estimation_calculator(alien_games)
-		alien_stat_message+=f"\n{alien}\nИгр: {len(alien_games)}\nВинрейт: {alien_winrate}\nСредняя оценка игр: {alien_avg_est}"
-	resp_mes = f"Профиль игрока {bot.get_chat(message.from_user.id).username}\nВинрейт: {winrate}%\nСредняя оценка игр: {avg_est}⭐️\n\nПерсонажи: {alien_stat_message}"
+		alien_stat_message+=f"\n• {alien.capitalize()} - {len(alien_games)} игр, {alien_winrate}% побед, {alien_avg_est}⭐️"
+	resp_mes = f"👤 Игрок: {bot.get_chat(message.from_user.id).username}\n🏅 Победы: {winrate}% | ⭐️ Средняя оценка: {avg_est}\n\n🧬 Персонажи: {alien_stat_message}"
 	bot.reply_to(message, resp_mes)
 
 @bot.message_handler(commands=['party'])
@@ -246,6 +246,10 @@ def callback_handler(call: CallbackQuery):
 		elif action == "select_alien":
 			_, alien_name, page_str, game_id, player_id = data
 			game_id, player_id = int(game_id), int(player_id)
+			if get_game(game_id)['is_over']:
+				bot.delete_message(call.message.chat.id, call.message.message_id)
+				bot.answer_callback_query(call.id, "Игра уже завершена!")
+				return
 			try:
 				join_game(game_id, player_id, alien_name)
 				bot.delete_message(call.message.chat.id, call.message.message_id)
@@ -265,6 +269,7 @@ def callback_handler(call: CallbackQuery):
 				if not i['alien']:
 					bot.answer_callback_query(call.id, f"Типуля @{bot.get_chat(i['player_id']).username} не выбрал персонажа!")
 					return
+			mark_game_as_over(game_id)
 			send_winner_selection(call.message.chat.id, game_id)
 			bot.delete_message(call.message.chat.id, call.message.message_id)
 			bot.answer_callback_query(call.id)
@@ -291,22 +296,24 @@ def callback_handler(call: CallbackQuery):
 
 			for player in get_game_players(game_id):
 				is_winner = player['player_id'] in winners
+				logging.debug(is_winner)
 				set_player_result(game_id, player['player_id'], is_winner, None)
-				send_rating_request(player['player_id'], game_id, player['player_id'])
+				send_rating_request(player['player_id'], game_id, player['player_id'], int(is_winner))
 
 			bot.delete_message(call.message.chat.id, call.message.message_id)
 			selected_winners.pop(game_id, None)
 			bot.answer_callback_query(call.id, "Игра завершена")
 
 		elif action == "rate":
-			game_id, player_id, rating = map(int, data[1:4])
-			set_player_result(game_id, player_id, is_player_in_game(game_id, player_id), rating)
+			game_id, player_id, is_winner, rating = map(int, data[1:5])
+			set_player_result(game_id, player_id, bool(is_winner), rating)
 			bot.delete_message(call.message.chat.id, call.message.message_id)
 			bot.answer_callback_query(call.id, "Оценка сохранена")
 
 	except Exception as e:
 		logging.error(f"Ошибка в callback_handler: {e}")
 		bot.answer_callback_query(call.id, "Произошла ошибка")
+		raise
 
 @bot.message_handler(func=lambda message: True)
 def send_alien_image(message):
