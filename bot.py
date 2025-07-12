@@ -140,9 +140,39 @@ def send_welcome(message):
 def menu_handler(message):
 	send_alien_page(chat_id=message.chat.id, message_id=None, page=0)
 
+def format_integer(okak):
+	return okak if okak != int(okak) else int(okak)
+
+def winrate_calculator(player_games):
+	wr = len([i for i in player_games if i['am_i_winner']]) / len(player_games) * 100
+	wr = format_integer(wr)
+	wr = round(wr, 2)
+	return wr
+
+def average_estimation_calculator(player_games):
+	avg_est = sum([i['my_estimation'] for i in player_games]) / len(player_games)
+	avg_est = format_integer(avg_est)
+	avg_est = round(avg_est, 2)
+	return avg_est
+
 @bot.message_handler(commands=['profile'])
 def user_profile(message):
-	user_stats = get_player_stats
+	player_games = get_player_stats(message.from_user.id)
+	winrate = winrate_calculator(player_games)
+	avg_est = average_estimation_calculator(player_games)
+	aliens_stats = {i: [] for i in aliens}
+	for game in player_games:
+		aliens_stats[game['my_alien']].append(game)
+
+	alien_stat_message = ""
+	for alien in sorted(aliens_stats, key=lambda x: len(aliens_stats[x])):
+		alien_games = aliens_stats[alien]
+		if alien_games == []: continue
+		alien_winrate = winrate_calculator(alien_games)
+		alien_avg_est = average_estimation_calculator(alien_games)
+		alien_stat_message+=f"\n{alien}\nИгр: {len(alien_games)}\nВинрейт: {alien_winrate}\nСредняя оценка игр: {alien_avg_est}"
+	resp_mes = f"Профиль игрока {bot.get_chat(message.from_user.id).username}\nВинрейт: {winrate}%\nСредняя оценка игр: {avg_est}⭐️\n\nПерсонажи: {alien_stat_message}"
+	bot.reply_to(message, resp_mes)
 
 @bot.message_handler(commands=['party'])
 def party_menu(message):
@@ -230,6 +260,11 @@ def callback_handler(call: CallbackQuery):
 			if call.from_user.id != creator_id:
 				bot.answer_callback_query(call.id, "Только создатель может завершить игру!")
 				return
+			players = get_game_players(game_id)
+			for i in players:
+				if not i['alien']:
+					bot.answer_callback_query(call.id, f"Типуля @{bot.get_chat(i['player_id']).username} не выбрал персонажа!")
+					return
 			send_winner_selection(call.message.chat.id, game_id)
 			bot.delete_message(call.message.chat.id, call.message.message_id)
 			bot.answer_callback_query(call.id)
