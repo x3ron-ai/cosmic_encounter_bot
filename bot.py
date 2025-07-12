@@ -34,10 +34,12 @@ def send_stations_page(chat_id, message_id, page):
 
 	buttons = [
 		InlineKeyboardButton(
-			text=name.capitalize(),
-			callback_data=f"station:{name}:{page}"
-		) for name in current_items
+			text=current_items[index].capitalize(),
+			callback_data=f"station:{index}:{page}"
+		) for index in range(len(current_items))
 	]
+
+	logging.info(str([len(i.callback_data.encode('utf-8')) for i in buttons]))
 
 	for i in range(0, len(buttons), BUTTONS_PER_ROW):
 		keyboard.add(*buttons[i:i + BUTTONS_PER_ROW])
@@ -71,9 +73,9 @@ def send_technologies_page(chat_id, message_id, page):
 
 	buttons = [
 		InlineKeyboardButton(
-			text=name.capitalize(),
-			callback_data=f"tech:{name}:{page}"
-		) for name in current_items
+			text=current_items[index].capitalize(),
+			callback_data=f"tech:{index}:{page}"
+		) for index in range(len(current_items))
 	]
 
 	for i in range(0, len(buttons), BUTTONS_PER_ROW):
@@ -89,6 +91,43 @@ def send_technologies_page(chat_id, message_id, page):
 		keyboard.add(*nav_buttons)
 
 	text = f"Выбери технологию (стр. {page + 1} из {total_pages})"
+
+	if message_id:
+		bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=text, reply_markup=keyboard)
+	else:
+		bot.send_message(chat_id, text, reply_markup=keyboard)
+
+def send_hazards_page(chat_id, message_id, page):
+	hazard_names = sorted(list(hazards.keys()))
+	total_pages = math.ceil(len(hazard_names) / ITEMS_PER_PAGE)
+	page = max(0, min(page, total_pages - 1))
+
+	start = page * ITEMS_PER_PAGE
+	end = start + ITEMS_PER_PAGE
+	current_items = hazard_names[start:end]
+
+	keyboard = InlineKeyboardMarkup(row_width=BUTTONS_PER_ROW)
+
+	buttons = [
+		InlineKeyboardButton(
+			text=current_items[index].capitalize(),
+			callback_data=f"hazard:{index}:{page}"
+		) for index in range(len(current_items))
+	]
+
+	for i in range(0, len(buttons), BUTTONS_PER_ROW):
+		keyboard.add(*buttons[i:i + BUTTONS_PER_ROW])
+
+	nav_buttons = []
+	if page > 0:
+		nav_buttons.append(InlineKeyboardButton("⬅️ Назад", callback_data=f"hazard_page:{page - 1}"))
+	if page < total_pages - 1:
+		nav_buttons.append(InlineKeyboardButton("Вперёд ➡️", callback_data=f"hazard_page:{page + 1}"))
+
+	if nav_buttons:
+		keyboard.add(*nav_buttons)
+
+	text = f"Выбери угрозу (стр. {page + 1} из {total_pages})"
 
 	if message_id:
 		bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=text, reply_markup=keyboard)
@@ -129,6 +168,17 @@ def send_alien_page(chat_id, message_id, page, game_id=None, player_id=None):
 		bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=text, reply_markup=keyboard)
 	else:
 		bot.send_message(chat_id, text, reply_markup=keyboard)
+
+def send_other_photos(chat_id, object_name, is_private=True):
+	media = []
+
+	all_photos = {**hazards, **technologies, **stations}
+	image_path = all_photos[object_name]
+	if os.path.exists(image_path):
+		media.append(InputMediaPhoto(media=open(image_path, 'rb'), caption=f"Карта: {object_name.capitalize()}"))
+	else:
+		logging.warning(f"Файл не найден: {image_path}")
+	bot.send_media_group(chat_id, media)
 
 def send_alien_photos(chat_id, alien_name, is_private=True):
 	media = []
@@ -212,12 +262,16 @@ def send_welcome(message):
 		logging.error(f"Ошибка в send_welcome: {e}")
 
 @bot.message_handler(commands=['stations'])
-def stations_handler():
+def stations_handler(message):
 	send_stations_page(chat_id=message.chat.id, message_id=None, page=0)
 
 @bot.message_handler(commands=['technologies'])
-def stations_handler():
+def stations_handler(message):
 	send_technologies_page(chat_id=message.chat.id, message_id=None, page=0)
+
+@bot.message_handler(commands=['hazards'])
+def stations_handler(message):
+	send_hazards_page(chat_id=message.chat.id, message_id=None, page=0)
 
 @bot.message_handler(commands=['aliens'])
 def aliens_handler(message):
@@ -289,11 +343,51 @@ def callback_handler(call: CallbackQuery):
 			send_alien_page(call.message.chat.id, message_id=None, page=page)
 			bot.answer_callback_query(call.id)
 
+		elif action == "station":
+			_, station_index, page_str = data
+			page = int(page_str)
+			bot.delete_message(call.message.chat.id, call.message.message_id)
+			send_other_photos(call.message.chat.id, list(stations)[int(station_index)])
+			send_stations_page(call.message.chat.id, message_id=None, page=page)
+			bot.answer_callback_query(call.id)
+
+		elif action == "tech":
+			_, technology_index, page_str = data
+			page = int(page_str)
+			bot.delete_message(call.message.chat.id, call.message.message_id)
+			send_other_photos(call.message.chat.id, list(technologies)[int(technology_index)])
+			send_technologies_page(call.message.chat.id, message_id=None, page=page)
+			bot.answer_callback_query(call.id)
+
+		elif action == "hazard":
+			_, hazard_index, page_str = data
+			page = int(page_str)
+			bot.delete_message(call.message.chat.id, call.message.message_id)
+			send_other_photos(call.message.chat.id, list(hazards)[int(hazard_index)])
+			send_hazards_page(call.message.chat.id, message_id=None, page=page)
+			bot.answer_callback_query(call.id)
+
+
 		elif action == "page":
 			page = int(data[1])
 			game_id = int(data[2]) if len(data) > 2 else None
 			player_id = int(data[3]) if len(data) > 3 else None
 			send_alien_page(call.message.chat.id, call.message.message_id, page, game_id, player_id)
+			bot.answer_callback_query(call.id)
+
+		elif action == "tech_page":
+			page = int(data[1])
+			send_technologies_page(call.message.chat.id, call.message.message_id, page)
+			bot.answer_callback_query(call.id)
+
+		elif action == "hazard_page":
+			page = int(data[1])
+			send_hazards_page(call.message.chat.id, call.message.message_id, page)
+			bot.answer_callback_query(call.id)
+
+		elif action == "station_page":
+			page = int(data[1])
+			send_stations_page(call.message.chat.id, call.message.message_id, page)
 			bot.answer_callback_query(call.id)
 
 		elif action == "dlc":
