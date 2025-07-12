@@ -21,6 +21,81 @@ DLC_LIST = ['технологии', 'награды', 'маркеры кораб
 pending_games = {}  # Временное хранение комментариев и дополнений для игр
 selected_winners = {}  # game_id -> set(player_ids)
 
+def send_stations_page(chat_id, message_id, page):
+	station_names = sorted(list(stations.keys()))
+	total_pages = math.ceil(len(station_names) / ITEMS_PER_PAGE)
+	page = max(0, min(page, total_pages - 1))
+
+	start = page * ITEMS_PER_PAGE
+	end = start + ITEMS_PER_PAGE
+	current_items = station_names[start:end]
+
+	keyboard = InlineKeyboardMarkup(row_width=BUTTONS_PER_ROW)
+
+	buttons = [
+		InlineKeyboardButton(
+			text=name.capitalize(),
+			callback_data=f"station:{name}:{page}"
+		) for name in current_items
+	]
+
+	for i in range(0, len(buttons), BUTTONS_PER_ROW):
+		keyboard.add(*buttons[i:i + BUTTONS_PER_ROW])
+
+	nav_buttons = []
+	if page > 0:
+		nav_buttons.append(InlineKeyboardButton("⬅️ Назад", callback_data=f"station_page:{page - 1}"))
+	if page < total_pages - 1:
+		nav_buttons.append(InlineKeyboardButton("Вперёд ➡️", callback_data=f"station_page:{page + 1}"))
+
+	if nav_buttons:
+		keyboard.add(*nav_buttons)
+
+	text = f"Выбери станцию (стр. {page + 1} из {total_pages})"
+
+	if message_id:
+		bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=text, reply_markup=keyboard)
+	else:
+		bot.send_message(chat_id, text, reply_markup=keyboard)
+
+def send_technologies_page(chat_id, message_id, page):
+	technology_names = sorted(list(technologies.keys()))
+	total_pages = math.ceil(len(technology_names) / ITEMS_PER_PAGE)
+	page = max(0, min(page, total_pages - 1))
+
+	start = page * ITEMS_PER_PAGE
+	end = start + ITEMS_PER_PAGE
+	current_items = technology_names[start:end]
+
+	keyboard = InlineKeyboardMarkup(row_width=BUTTONS_PER_ROW)
+
+	buttons = [
+		InlineKeyboardButton(
+			text=name.capitalize(),
+			callback_data=f"tech:{name}:{page}"
+		) for name in current_items
+	]
+
+	for i in range(0, len(buttons), BUTTONS_PER_ROW):
+		keyboard.add(*buttons[i:i + BUTTONS_PER_ROW])
+
+	nav_buttons = []
+	if page > 0:
+		nav_buttons.append(InlineKeyboardButton("⬅️ Назад", callback_data=f"tech_page:{page - 1}"))
+	if page < total_pages - 1:
+		nav_buttons.append(InlineKeyboardButton("Вперёд ➡️", callback_data=f"tech_page:{page + 1}"))
+
+	if nav_buttons:
+		keyboard.add(*nav_buttons)
+
+	text = f"Выбери технологию (стр. {page + 1} из {total_pages})"
+
+	if message_id:
+		bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=text, reply_markup=keyboard)
+	else:
+		bot.send_message(chat_id, text, reply_markup=keyboard)
+
+
 def send_alien_page(chat_id, message_id, page, game_id=None, player_id=None):
 	alien_names = sorted(list(aliens.keys()))
 	total_pages = math.ceil(len(alien_names) / ITEMS_PER_PAGE)
@@ -136,8 +211,16 @@ def send_welcome(message):
 	except Exception as e:
 		logging.error(f"Ошибка в send_welcome: {e}")
 
+@bot.message_handler(commands=['stations'])
+def stations_handler():
+	send_stations_page(chat_id=message.chat.id, message_id=None, page=0)
+
+@bot.message_handler(commands=['technologies'])
+def stations_handler():
+	send_technologies_page(chat_id=message.chat.id, message_id=None, page=0)
+
 @bot.message_handler(commands=['aliens'])
-def menu_handler(message):
+def aliens_handler(message):
 	send_alien_page(chat_id=message.chat.id, message_id=None, page=0)
 
 def format_integer(okak):
