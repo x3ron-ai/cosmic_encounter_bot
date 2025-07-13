@@ -443,15 +443,23 @@ def callback_handler(call: CallbackQuery):
 
 		elif action == "add_achieve":
 			_, achieve_index, player_id = data
+			if int(player_id) != call.from_user.id:
+				bot.answer_callback_query(call.id, "Ты не ты чето я не я")
+				return
 			achievement_name = sorted(list(ACHIEVEMENTS.keys()))[int(achieve_index)]
 			add_player_achievement(int(player_id), achievement_name)
 			send_achieve_info(call.message.chat.id, call.from_user.id, message_id=call.message.id, achievement_id=int(achieve_index))
+			bot.answer_callback_query(call.id)
 
 		elif action == "del_achieve":
 			_, achieve_index, player_id = data
+			if int(player_id) != call.from_user.id:
+				bot.answer_callback_query(call.id, "Ты не ты чето я не я")
+				return
 			achievement_name = sorted(list(ACHIEVEMENTS.keys()))[int(achieve_index)]
 			delete_player_achievement(int(player_id), achievement_name)
 			send_achieve_info(call.message.chat.id, call.from_user.id, message_id=call.message.id, achievement_id=int(achieve_index))
+			bot.answer_callback_query(call.id)
 
 		elif action == "achieve":
 			_, achieve_index, page_str = data
@@ -465,6 +473,9 @@ def callback_handler(call: CallbackQuery):
 			page = int(data[1])
 			game_id = int(data[2]) if len(data) > 2 else None
 			player_id = int(data[3]) if len(data) > 3 else None
+			if int(player_id) != call.from_user.id:
+				bot.answer_callback_query(call.id, "Ты не ты чето я не я")
+				return
 			send_alien_page(call.message.chat.id, call.message.message_id, page, game_id, player_id)
 			bot.answer_callback_query(call.id)
 
