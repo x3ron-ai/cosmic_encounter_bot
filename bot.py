@@ -1,7 +1,7 @@
 import telebot, os, logging, math
 from telebot.types import InputFile, InputMediaPhoto, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from dotenv import load_dotenv
-from aliens import *
+from cc_data import ALIENS, ESSENCE_ALIENS, FLARES, TECHNOLOGIES, HAZARDS, STATIONS
 from stats import *
 from datetime import datetime
 
@@ -22,7 +22,7 @@ pending_games = {}  # Временное хранение комментарие
 selected_winners = {}  # game_id -> set(player_ids)
 
 def send_stations_page(chat_id, message_id, page):
-	station_names = sorted(list(stations.keys()))
+	station_names = sorted(list(STATIONS.keys()))
 	total_pages = math.ceil(len(station_names) / ITEMS_PER_PAGE)
 	page = max(0, min(page, total_pages - 1))
 
@@ -61,7 +61,7 @@ def send_stations_page(chat_id, message_id, page):
 		bot.send_message(chat_id, text, reply_markup=keyboard)
 
 def send_technologies_page(chat_id, message_id, page):
-	technology_names = sorted(list(technologies.keys()))
+	technology_names = sorted(list(TECHNOLOGIES.keys()))
 	total_pages = math.ceil(len(technology_names) / ITEMS_PER_PAGE)
 	page = max(0, min(page, total_pages - 1))
 
@@ -98,7 +98,7 @@ def send_technologies_page(chat_id, message_id, page):
 		bot.send_message(chat_id, text, reply_markup=keyboard)
 
 def send_hazards_page(chat_id, message_id, page):
-	hazard_names = sorted(list(hazards.keys()))
+	hazard_names = sorted(list(HAZARDS.keys()))
 	total_pages = math.ceil(len(hazard_names) / ITEMS_PER_PAGE)
 	page = max(0, min(page, total_pages - 1))
 
@@ -136,7 +136,7 @@ def send_hazards_page(chat_id, message_id, page):
 
 
 def send_alien_page(chat_id, message_id, page, game_id=None, player_id=None):
-	alien_names = sorted(list(aliens.keys()))
+	alien_names = sorted(list(ALIENS.keys()))
 	total_pages = math.ceil(len(alien_names) / ITEMS_PER_PAGE)
 	page = max(0, min(page, total_pages - 1))
 
@@ -172,7 +172,7 @@ def send_alien_page(chat_id, message_id, page, game_id=None, player_id=None):
 def send_other_photos(chat_id, object_name, is_private=True):
 	media = []
 
-	all_photos = {**hazards, **technologies, **stations}
+	all_photos = {**HAZARDS, **TECHNOLOGIES, **STATIONS}
 	image_path = all_photos[object_name]
 	if os.path.exists(image_path):
 		media.append(InputMediaPhoto(media=open(image_path, 'rb'), caption=f"Карта: {object_name.capitalize()}"))
@@ -183,22 +183,22 @@ def send_other_photos(chat_id, object_name, is_private=True):
 def send_alien_photos(chat_id, alien_name, is_private=True):
 	media = []
 
-	if alien_name in aliens:
-		image_path = aliens[alien_name]
+	if alien_name in ALIENS:
+		image_path = ALIENS[alien_name]
 		if os.path.exists(image_path):
 			media.append(InputMediaPhoto(media=open(image_path, 'rb'), caption=f"Пришелец: {alien_name.capitalize()}"))
 		else:
 			logging.warning(f"Файл не найден: {image_path}")
 
-	if alien_name in flares:
-		flare_path = flares[alien_name]
+	if alien_name in FLARES:
+		flare_path = FLARES[alien_name]
 		if os.path.exists(flare_path):
 			media.append(InputMediaPhoto(media=open(flare_path, 'rb'), caption="Вспышка"))
 		else:
 			logging.warning(f"Файл не найден: {flare_path}")
 
-	if alien_name in essence_aliens:
-		essence_path = essence_aliens[alien_name]
+	if alien_name in ESSENCE_ALIENS:
+		essence_path = ESSENCE_ALIENS[alien_name]
 		if os.path.exists(essence_path):
 			media.append(InputMediaPhoto(media=open(essence_path, 'rb'), caption=f"Карты: {alien_name.capitalize()}"))
 		else:
@@ -297,7 +297,7 @@ def user_profile(message):
 	player_games = get_player_stats(message.from_user.id)
 	winrate = winrate_calculator(player_games)
 	avg_est = average_estimation_calculator(player_games)
-	aliens_stats = {i: [] for i in aliens}
+	aliens_stats = {i: [] for i in ALIENS}
 	for game in player_games:
 		aliens_stats[game['my_alien']].append(game)
 
@@ -347,7 +347,7 @@ def callback_handler(call: CallbackQuery):
 			_, station_index, page_str = data
 			page = int(page_str)
 			bot.delete_message(call.message.chat.id, call.message.message_id)
-			send_other_photos(call.message.chat.id, list(stations)[int(station_index)])
+			send_other_photos(call.message.chat.id, list(STATIONS)[int(station_index)])
 			send_stations_page(call.message.chat.id, message_id=None, page=page)
 			bot.answer_callback_query(call.id)
 
@@ -355,7 +355,7 @@ def callback_handler(call: CallbackQuery):
 			_, technology_index, page_str = data
 			page = int(page_str)
 			bot.delete_message(call.message.chat.id, call.message.message_id)
-			send_other_photos(call.message.chat.id, list(technologies)[int(technology_index)])
+			send_other_photos(call.message.chat.id, list(TECHNOLOGIES)[int(technology_index)])
 			send_technologies_page(call.message.chat.id, message_id=None, page=page)
 			bot.answer_callback_query(call.id, 'FFFFFFFFFFFFFFFF'+str(technology_index))
 
@@ -363,8 +363,8 @@ def callback_handler(call: CallbackQuery):
 			_, hazard_index, page_str = data
 			page = int(page_str)
 			bot.delete_message(call.message.chat.id, call.message.message_id)
-			logging.info(list(hazards)[int(hazard_index)])
-			send_other_photos(call.message.chat.id, list(hazards)[int(hazard_index)])
+			logging.info(list(HAZARDS)[int(hazard_index)])
+			send_other_photos(call.message.chat.id, list(HAZARDS)[int(hazard_index)])
 			send_hazards_page(call.message.chat.id, message_id=None, page=page)
 			bot.answer_callback_query(call.id)
 

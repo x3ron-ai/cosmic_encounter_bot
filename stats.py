@@ -1,6 +1,6 @@
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from aliens import aliens
+from cc_data import ALIENS as aliens
 import os
 import logging
 from dotenv import load_dotenv
