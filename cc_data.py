@@ -11,3 +11,7 @@ STATIONS = json.loads(open('data/stations.json').read())
 TECHNOLOGIES = json.loads(open('data/technologies.json').read())
 
 HAZARDS = json.loads(open('data/hazards.json').read())
+
+LOCALIZATION_EN = json.loads(open('data/localization_en.json').read())
+
+ACHIEVEMENTS = json.loads(open('data/achievements.json').read())

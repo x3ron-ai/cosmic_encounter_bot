@@ -1,7 +1,7 @@
 import telebot, os, logging, math
 from telebot.types import InputFile, InputMediaPhoto, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from dotenv import load_dotenv
-from cc_data import ALIENS, ESSENCE_ALIENS, FLARES, TECHNOLOGIES, HAZARDS, STATIONS
+from cc_data import ALIENS, ESSENCE_ALIENS, FLARES, TECHNOLOGIES, HAZARDS, STATIONS, LOCALIZATION_EN, ACHIEVEMENTS
 from stats import *
 from datetime import datetime
 
@@ -20,6 +20,44 @@ BUTTONS_PER_ROW = 2
 DLC_LIST = ['технологии', 'награды', 'маркеры кораблей', 'диски союзов', 'космические станции', 'карточки угроз']
 pending_games = {}  # Временное хранение комментариев и дополнений для игр
 selected_winners = {}  # game_id -> set(player_ids)
+
+def send_achievements_page(chat_id, message_id, page):
+	achievements_names = sorted(list(ACHIEVEMENTS.keys()))
+	total_pages = math.ceil(len(achievements_names) / 8)
+	page = max(0, min(page, total_pages - 1))
+
+	start = page * 8
+	end = start + 8
+	current_items = achievements_names[start:end]
+
+	keyboard = InlineKeyboardMarkup(row_width=2)
+
+	buttons = [
+		InlineKeyboardButton(
+			text=current_items[index].capitalize(),
+			callback_data=f"achieve:{index + 8 * page}:{page}"
+		) for index in range(len(current_items))
+	]
+
+	for btn in buttons:
+		keyboard.add(btn)
+		logging.info(str(btn.callback_data))
+
+	nav_buttons = []
+	if page > 0:
+		nav_buttons.append(InlineKeyboardButton("⬅️ Назад", callback_data=f"achieve_page:{page - 1}"))
+	if page < total_pages - 1:
+		nav_buttons.append(InlineKeyboardButton("Вперёд ➡️", callback_data=f"achieve_page:{page + 1}"))
+
+	if nav_buttons:
+		keyboard.add(*nav_buttons)
+
+	text = f"Выбери достижение (стр. {page + 1} из {total_pages})"
+
+	if message_id:
+		bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=text, reply_markup=keyboard)
+	else:
+		bot.send_message(chat_id, text, reply_markup=keyboard)
 
 def send_stations_page(chat_id, message_id, page):
 	station_names = sorted(list(STATIONS.keys()))
@@ -186,7 +224,11 @@ def send_alien_photos(chat_id, alien_name, is_private=True):
 	if alien_name in ALIENS:
 		image_path = ALIENS[alien_name]
 		if os.path.exists(image_path):
-			media.append(InputMediaPhoto(media=open(image_path, 'rb'), caption=f"Пришелец: {alien_name.capitalize()}"))
+			if alien_name in LOCALIZATION_EN:
+				caption=f"Пришелец: {alien_name.capitalize()} ({LOCALIZATION_EN[alien_name]})"
+			else:
+				caption=f"Пришелец: {alien_name.capitalize()}"
+			media.append(InputMediaPhoto(media=open(image_path, 'rb'), caption=caption))
 		else:
 			logging.warning(f"Файл не найден: {image_path}")
 
@@ -249,6 +291,24 @@ def send_rating_request(chat_id, game_id, player_id, is_winner):
 		keyboard.add(InlineKeyboardButton(f"{i} ⭐", callback_data=f"rate:{game_id}:{player_id}:{is_winner}:{i}"))
 	bot.send_message(chat_id, "Оцените игру (1-5 звезд):", reply_markup=keyboard)
 
+def send_achieve_info(chat_id, player_id, achievement_id, message_id=None):
+	achievement = sorted(list(ACHIEVEMENTS.keys()))[achievement_id]
+	achievement_info = ACHIEVEMENTS[achievement]
+	keyboard = InlineKeyboardMarkup()
+
+	player_achievements = [i['achievement'] for i in get_player_achievements(player_id)]
+
+	if achievement not in player_achievements:
+		keyboard.add(InlineKeyboardButton("✅ Получить достижение", callback_data=f"add_achieve:{achievement_id}:{player_id}"))
+	else:
+		keyboard.add(InlineKeyboardButton("❌ Убрать достижение", callback_data=f"del_achieve:{achievement_id}:{player_id}"))
+
+	text = f"Достижение: {achievement}\n{achievement_info}"
+	if not message_id:
+		bot.send_message(chat_id, text, reply_markup=keyboard)
+	else:
+		bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=text, reply_markup=keyboard)
+
 @bot.message_handler(commands=['site'])
 def site_message(message):
 	bot.reply_to(message, 'Омагад!!! https://t.me/addemoji/CosmicEncounter')
@@ -260,6 +320,10 @@ def send_welcome(message):
 		bot.reply_to(message, "Напиши нужного пришельца или выбери его в /aliens")
 	except Exception as e:
 		logging.error(f"Ошибка в send_welcome: {e}")
+
+@bot.message_handler(commands=['achievements'])
+def achievements_handler(message):
+	send_achievements_page(chat_id=message.chat.id, message_id=None, page=0)
 
 @bot.message_handler(commands=['stations'])
 def stations_handler(message):
@@ -281,13 +345,15 @@ def format_integer(okak):
 	return okak if okak != int(okak) else int(okak)
 
 def winrate_calculator(player_games):
-	wr = len([i for i in player_games if i['am_i_winner']]) / len(player_games) * 100
+	try: wr = len([i for i in player_games if i['am_i_winner']]) / len(player_games) * 100
+	except: wr = 0
 	wr = format_integer(wr)
 	wr = round(wr, 2)
 	return wr
 
 def average_estimation_calculator(player_games):
-	avg_est = sum([i['my_estimation'] for i in player_games]) / len(player_games)
+	try: avg_est = sum([i['my_estimation'] for i in player_games]) / len(player_games)
+	except: avg_est = 0
 	avg_est = format_integer(avg_est)
 	avg_est = round(avg_est, 2)
 	return avg_est
@@ -295,6 +361,8 @@ def average_estimation_calculator(player_games):
 @bot.message_handler(commands=['profile'])
 def user_profile(message):
 	player_games = get_player_stats(message.from_user.id)
+	player_achievements = get_player_achievements(message.from_user.id)
+
 	winrate = winrate_calculator(player_games)
 	avg_est = average_estimation_calculator(player_games)
 	aliens_stats = {i: [] for i in ALIENS}
@@ -307,8 +375,13 @@ def user_profile(message):
 		if alien_games == []: continue
 		alien_winrate = winrate_calculator(alien_games)
 		alien_avg_est = average_estimation_calculator(alien_games)
-		alien_stat_message+=f"\n• {alien.capitalize()} - {len(alien_games)} игр, {alien_winrate}% побед, {alien_avg_est}⭐️"
-	resp_mes = f"👤 Игрок: {bot.get_chat(message.from_user.id).username}\n🏅 Победы: {winrate}% | ⭐️ Средняя оценка: {avg_est}\n\n🧬 Персонажи: {alien_stat_message}"
+		alien_stat_message+=f"\n  • {alien.capitalize()} - {len(alien_games)} игр, {alien_winrate}% побед, {alien_avg_est}⭐️"
+
+	achievements_message = "\n🥇 Достижения игрока" #за достижения вписать
+	for achievement in player_achievements:
+		achievements_message += f"\n  • {achievement['achievement']} - {achievement['date'].strftime('%d.%m.%Y %H:%M')}"
+
+	resp_mes = f"👤 Игрок: {bot.get_chat(message.from_user.id).username}\n🏅 Победы: {winrate}% | ⭐️ Средняя оценка: {avg_est}\n\n🧬 Персонажи: {alien_stat_message}\n{achievements_message}"
 	bot.reply_to(message, resp_mes)
 
 @bot.message_handler(commands=['party'])
@@ -368,12 +441,36 @@ def callback_handler(call: CallbackQuery):
 			send_hazards_page(call.message.chat.id, message_id=None, page=page)
 			bot.answer_callback_query(call.id)
 
+		elif action == "add_achieve":
+			_, achieve_index, player_id = data
+			achievement_name = sorted(list(ACHIEVEMENTS.keys()))[int(achieve_index)]
+			add_player_achievement(int(player_id), achievement_name)
+			send_achieve_info(call.message.chat.id, call.from_user.id, message_id=call.message.id, achievement_id=int(achieve_index))
+
+		elif action == "del_achieve":
+			_, achieve_index, player_id = data
+			achievement_name = sorted(list(ACHIEVEMENTS.keys()))[int(achieve_index)]
+			delete_player_achievement(int(player_id), achievement_name)
+			send_achieve_info(call.message.chat.id, call.from_user.id, message_id=call.message.id, achievement_id=int(achieve_index))
+
+		elif action == "achieve":
+			_, achieve_index, page_str = data
+			page = int(page_str)
+			bot.delete_message(call.message.chat.id, call.message.message_id)
+			send_achieve_info(call.message.chat.id, call.from_user.id, message_id=None, achievement_id=int(achieve_index))
+			send_achievements_page(call.message.chat.id, message_id=None, page=page)
+			bot.answer_callback_query(call.id)
 
 		elif action == "page":
 			page = int(data[1])
 			game_id = int(data[2]) if len(data) > 2 else None
 			player_id = int(data[3]) if len(data) > 3 else None
 			send_alien_page(call.message.chat.id, call.message.message_id, page, game_id, player_id)
+			bot.answer_callback_query(call.id)
+
+		elif action == "achieve_page":
+			page = int(data[1])
+			send_achievements_page(call.message.chat.id, call.message.message_id, page)
 			bot.answer_callback_query(call.id)
 
 		elif action == "tech_page":

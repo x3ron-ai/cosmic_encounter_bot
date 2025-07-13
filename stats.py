@@ -107,6 +107,28 @@ def is_player_in_game(game_id, player_id):
 			""", (game_id, player_id))
 			return cur.fetchone() is not None
 
+def add_player_achievement(player_id, achievement):
+	with get_connection() as conn:
+		with conn.cursor() as cur:
+			cur.execute("""
+				INSERT INTO player_achievements(player_id, achievement) VALUES (%s, %s)
+			""", (player_id, achievement))
+
+def delete_player_achievement(player_id, achievement):
+	with get_connection() as conn:
+		with conn.cursor() as cur:
+			cur.execute("""
+				DELETE FROM player_achievements WHERE player_id = %s AND achievement = %s
+			""", (player_id, achievement))
+
+def get_player_achievements(player_id):
+	with get_connection() as conn:
+		with conn.cursor() as cur:
+			cur.execute(
+				"SELECT achievement, date FROM player_achievements WHERE player_id = %s ORDER BY date ASC",
+				(player_id,)
+			)
+			return cur.fetchall()
 
 def get_player_stats(player_id):
 	with get_connection() as conn:
@@ -128,7 +150,6 @@ def get_player_stats(player_id):
 			""", (player_id,))
 			games = cur.fetchall()
 
-			# Для каждого найденного game_id — достаём остальных игроков
 			for game in games:
 				game_id = game['game_id']
 				cur.execute("""
