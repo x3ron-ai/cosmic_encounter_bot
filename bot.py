@@ -366,9 +366,29 @@ def average_estimation_calculator(player_games):
 @bot.message_handler(commands=['history'])
 def player_history(message):
 	player_games = get_player_stats(message.from_user.id)
-	response = "История игр:\n"
+
+	if not player_games:
+		bot.reply_to(message, "У тебя пока нет сыгранных игр.")
+		return
+
+	response = "📜 История игр:\n\n"
+
 	for game in player_games:
-		response+=f'Игра #{game["game_id"]} {"кубок" if game["am_i_winner"] else ""} / {game["my_estimation"]}звёзд / {game["date"].strftime("%d.%m.%Y %H:%M")}\nДополнения: {game["dlc"]}\nКомментарий: {game["comment"]}\n\n'
+		response += (
+			f'🎮 Игра #{game["game_id"]} {"🏆 Победа!" if game["am_i_winner"] else "❌ Поражение"}\n'
+			f'👽 Ты играл за: {game["my_alien"]}\n'
+			f'⭐ Твоя оценка: {game["my_estimation"]}/5\n'
+			f'🗓️ Дата: {game["date"].strftime("%d.%m.%Y %H:%M")}\n\n'
+		)
+
+		response += '🤼‍♂️ Противники:\n'
+		for opp in game['opponents']:
+			status = "🏆" if opp["is_winner"] else "❌"
+			estimation = f'{opp["estimation"]}/5' if opp["estimation"] is not None else "—"
+			response += f'• 👽 {opp["alien"].capitalize()} {status} — {estimation}\n'
+
+		response += f'\n🧩 Дополнения: {game["dlc"] or "—"}\n'
+		response += f'💬 Комментарий: {game["comment"] or "—"}\n\n'
 
 	bot.reply_to(message, response)
 
