@@ -128,7 +128,7 @@ def send_history_page(chat_id, player_games, page, message_id=None):
 	for game in current_page_games:
 		response += (
 			f'🎮 Игра #{game["game_id"]} {"🏆 Победа!" if game["am_i_winner"] else "❌ Поражение"}\n'
-			f'👽 Ты играл за: {game["my_alien"]}\n'
+			f'👽 Ты играл за: {game["my_alien"].capitalize()}\n'
 			f'⭐ Твоя оценка: {game["my_estimation"]}/5\n'
 			f'🗓️ Дата: {game["date"].strftime("%d.%m.%Y %H:%M")}\n\n'
 			'🤼♂️ Противники:\n'
@@ -136,7 +136,7 @@ def send_history_page(chat_id, player_games, page, message_id=None):
 
 		for opp in game['opponents']:
 			status = "🏆" if opp["is_winner"] else "❌"
-			estimation = f'{opp["estimation"]}/5🌟' if opp["estimation"] is not None else "—"
+			estimation = f'{opp["estimation"]}/5⭐' if opp["estimation"] is not None else "—"
 			response += f'• 👽 {opp["alien"].capitalize()} {status} — {estimation}\n'
 
 		response += f'\n🧩 Дополнения: {game["dlc"] or "—"}\n'
