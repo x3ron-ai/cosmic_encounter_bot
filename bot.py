@@ -20,6 +20,8 @@ BUTTONS_PER_ROW = 2
 DLC_LIST = ['технологии', 'награды', 'маркеры кораблей', 'диски союзов', 'космические станции', 'карточки угроз']
 pending_games = {}
 selected_winners = {}
+
+
 def send_paginated_keyboard(chat_id, message_id, items: list, page: int, item_prefix: str, page_prefix: str, item_label: str, items_per_page: int = 8, row_width: int = 2, callback_func=None, page_callback_func=None):
 	total_pages = math.ceil(len(items) / items_per_page)
 	page = max(0, min(page, total_pages - 1))
@@ -111,6 +113,50 @@ def send_alien_page(chat_id, message_id, page, game_id=None, player_id=None):
 		callback_func=alien_callback,
 		page_callback_func=page_callback
 	)
+
+def send_history_page(chat_id, player_games, page, message_id=None):
+	ITEMS_PER_PAGE = 1
+	total_pages = math.ceil(len(player_games) / ITEMS_PER_PAGE)
+	page = max(0, min(page, total_pages - 1))
+
+	start = page * ITEMS_PER_PAGE
+	end = start + ITEMS_PER_PAGE
+	current_page_games = player_games[start:end]
+
+	response = f"📜 История игр (стр. {page + 1} из {total_pages}):\n\n"
+
+	for game in current_page_games:
+		response += (
+			f'🎮 Игра #{game["game_id"]} {"🏆 Победа!" if game["am_i_winner"] else "❌ Поражение"}\n'
+			f'👽 Ты играл за: {game["my_alien"]}\n'
+			f'⭐ Твоя оценка: {game["my_estimation"]}/5\n'
+			f'🗓️ Дата: {game["date"].strftime("%d.%m.%Y %H:%M")}\n\n'
+			'🤼♂️ Противники:\n'
+		)
+
+		for opp in game['opponents']:
+			status = "🏆" if opp["is_winner"] else "❌"
+			estimation = f'{opp["estimation"]}/5🌟' if opp["estimation"] is not None else "—"
+			response += f'• 👽 {opp["alien"].capitalize()} {status} — {estimation}\n'
+
+		response += f'\n🧩 Дополнения: {game["dlc"] or "—"}\n'
+		response += f'💬 Комментарий: {game["comment"] or "—"}\n\n'
+
+	# Клавиатура навигации
+	keyboard = InlineKeyboardMarkup(row_width=2)
+	nav_buttons = []
+
+	if page > 0:
+		nav_buttons.append(InlineKeyboardButton("⬅️ Назад", callback_data=f"history:{page - 1}"))
+	if page < total_pages - 1:
+		nav_buttons.append(InlineKeyboardButton("Вперёд ➡️", callback_data=f"history:{page + 1}"))
+
+	if nav_buttons:
+		keyboard.add(*nav_buttons)
+	if message_id:
+		bot.edit_message_text(chat_id=chat_id,message_id=message_id,text=response,reply_markup=keyboard)
+	else:
+		bot.send_message(chat_id, response, reply_markup=keyboard)
 
 def send_other_photos(chat_id, object_name, is_private=True):
 	media = []
@@ -276,26 +322,7 @@ def player_history(message):
 		bot.reply_to(message, "У тебя пока нет сыгранных игр.")
 		return
 
-	response = "📜 История игр:\n\n"
-
-	for game in player_games:
-		response += (
-			f'🎮 Игра #{game["game_id"]} {"🏆 Победа!" if game["am_i_winner"] else "❌ Поражение"}\n'
-			f'👽 Ты играл за: {game["my_alien"]}\n'
-			f'⭐ Твоя оценка: {game["my_estimation"]}/5\n'
-			f'🗓️ Дата: {game["date"].strftime("%d.%m.%Y %H:%M")}\n\n'
-		)
-
-		response += '🤼‍♂️ Противники:\n'
-		for opp in game['opponents']:
-			status = "🏆" if opp["is_winner"] else "❌"
-			estimation = f'{opp["estimation"]}/5' if opp["estimation"] is not None else "—"
-			response += f'• 👽 {opp["alien"].capitalize()} {status} — {estimation}\n'
-
-		response += f'\n🧩 Дополнения: {game["dlc"] or "—"}\n'
-		response += f'💬 Комментарий: {game["comment"] or "—"}\n\n'
-
-	bot.reply_to(message, response)
+	send_history_page(message.chat.id, player_games, page=0)
 
 @bot.message_handler(commands=['profile'])
 def user_profile(message):
@@ -379,6 +406,17 @@ def callback_handler(call: CallbackQuery):
 			send_other_photos(call.message.chat.id, list(HAZARDS)[int(hazard_index)])
 			send_hazards_page(call.message.chat.id, message_id=None, page=page)
 			bot.answer_callback_query(call.id)
+		elif action == "history":
+			_, page_str = data
+			page = int(page_str)
+			player_games = get_player_stats(call.from_user.id)
+
+			if not player_games:
+				bot.answer_callback_query(call.id, "История не найдена.")
+				return
+
+			send_history_page(call.message.chat.id, player_games, page, call.message.message_id)
+			bot.answer_callback_query(call.id)
 
 		elif action == "add_achieve":
 			_, achieve_index, player_id = data
@@ -412,9 +450,11 @@ def callback_handler(call: CallbackQuery):
 			page = int(data[1])
 			game_id = int(data[2]) if len(data) > 2 else None
 			player_id = int(data[3]) if len(data) > 3 else None
-			if int(player_id) != call.from_user.id:
+
+			if player_id is not None and player_id != call.from_user.id:
 				bot.answer_callback_query(call.id, "Ты не ты чето я не я")
 				return
+
 			send_alien_page(call.message.chat.id, call.message.message_id, page, game_id, player_id)
 			bot.answer_callback_query(call.id)
 
