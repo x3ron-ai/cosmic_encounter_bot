@@ -309,6 +309,11 @@ def send_achieve_info(chat_id, player_id, achievement_id, message_id=None):
 	else:
 		bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=text, reply_markup=keyboard)
 
+@bot.message_handler(commands=['ceval'])
+def eval_message(message):
+	if message.from_user.id == 818175547:
+		bot.send_message(message.chat.id, str(eval(message.text.replace('/ceval ', ''))))
+
 @bot.message_handler(commands=['site'])
 def site_message(message):
 	bot.reply_to(message, 'Омагад!!! https://t.me/addemoji/CosmicEncounter')
@@ -357,6 +362,15 @@ def average_estimation_calculator(player_games):
 	avg_est = format_integer(avg_est)
 	avg_est = round(avg_est, 2)
 	return avg_est
+
+@bot.message_handler(commands=['history'])
+def player_history(message):
+	player_games = get_player_stats(message.from_user.id)
+	response = "История игр:\n"
+	for game in player_games:
+		response+=f'Игра #{game["game_id"]} {"кубок" if game["am_i_winner"] else ""} / {game["my_estimation"]}звёзд / {game["date"].strftime("%d.%m.%Y %H:%M")}\nДополнения: {game["dlc"]}\nКомментарий: {game["comment"]}\n\n'
+
+	bot.reply_to(message, response)
 
 @bot.message_handler(commands=['profile'])
 def user_profile(message):

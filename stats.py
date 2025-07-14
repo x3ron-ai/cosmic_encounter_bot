@@ -18,13 +18,10 @@ DB_PARAMS = {
 }
 
 def get_connection():
-	logging.info(f"Connecting to database with params: {DB_PARAMS}")
 	try:
 		conn = psycopg2.connect(**DB_PARAMS, cursor_factory=RealDictCursor)
-		logging.info("Successfully connected to database")
 		return conn
 	except Exception as e:
-		logging.error(f"Failed to connect to database: {e}")
 		raise
 
 def add_player(telegram_id):
