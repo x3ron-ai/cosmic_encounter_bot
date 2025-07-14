@@ -18,194 +18,99 @@ except Exception as e:
 ITEMS_PER_PAGE = 10
 BUTTONS_PER_ROW = 2
 DLC_LIST = ['технологии', 'награды', 'маркеры кораблей', 'диски союзов', 'космические станции', 'карточки угроз']
-pending_games = {}  # Временное хранение комментариев и дополнений для игр
-selected_winners = {}  # game_id -> set(player_ids)
+pending_games = {}
+selected_winners = {}
+def send_paginated_keyboard(chat_id, message_id, items: list, page: int, item_prefix: str, page_prefix: str, item_label: str, items_per_page: int = 8, row_width: int = 2, callback_func=None, page_callback_func=None):
+	total_pages = math.ceil(len(items) / items_per_page)
+	page = max(0, min(page, total_pages - 1))
+
+	start = page * items_per_page
+	end = start + items_per_page
+	current_items = sorted(items)[start:end]
+
+	keyboard = InlineKeyboardMarkup(row_width=row_width)
+
+	buttons = [
+		InlineKeyboardButton(
+			text=item.capitalize(),
+			callback_data=callback_func(item, start + i, page) if callback_func else f"{item_prefix}:{start + i}:{page}"
+		) for i, item in enumerate(current_items)
+	]
+
+	for i in range(0, len(buttons), row_width):
+		keyboard.add(*buttons[i:i + row_width])
+
+	nav_buttons = []
+	if page > 0:
+		nav_cb = page_callback_func(page - 1) if page_callback_func else f"{page_prefix}_page:{page - 1}"
+		nav_buttons.append(InlineKeyboardButton("⬅️ Назад", callback_data=nav_cb))
+	if page < total_pages - 1:
+		nav_cb = page_callback_func(page + 1) if page_callback_func else f"{page_prefix}_page:{page + 1}"
+		nav_buttons.append(InlineKeyboardButton("Вперёд ➡️", callback_data=nav_cb))
+
+	if nav_buttons:
+		keyboard.add(*nav_buttons)
+
+	text = f"Выбери {item_label} (стр. {page + 1} из {total_pages})"
+
+	if message_id:
+		bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=text, reply_markup=keyboard)
+	else:
+		bot.send_message(chat_id, text, reply_markup=keyboard)
 
 def send_achievements_page(chat_id, message_id, page):
-	achievements_names = sorted(list(ACHIEVEMENTS.keys()))
-	total_pages = math.ceil(len(achievements_names) / 8)
-	page = max(0, min(page, total_pages - 1))
-
-	start = page * 8
-	end = start + 8
-	current_items = achievements_names[start:end]
-
-	keyboard = InlineKeyboardMarkup(row_width=2)
-
-	buttons = [
-		InlineKeyboardButton(
-			text=current_items[index].capitalize(),
-			callback_data=f"achieve:{index + 8 * page}:{page}"
-		) for index in range(len(current_items))
-	]
-
-	for btn in buttons:
-		keyboard.add(btn)
-		logging.info(str(btn.callback_data))
-
-	nav_buttons = []
-	if page > 0:
-		nav_buttons.append(InlineKeyboardButton("⬅️ Назад", callback_data=f"achieve_page:{page - 1}"))
-	if page < total_pages - 1:
-		nav_buttons.append(InlineKeyboardButton("Вперёд ➡️", callback_data=f"achieve_page:{page + 1}"))
-
-	if nav_buttons:
-		keyboard.add(*nav_buttons)
-
-	text = f"Выбери достижение (стр. {page + 1} из {total_pages})"
-
-	if message_id:
-		bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=text, reply_markup=keyboard)
-	else:
-		bot.send_message(chat_id, text, reply_markup=keyboard)
+	send_paginated_keyboard(
+		chat_id, message_id, list(ACHIEVEMENTS.keys()), page,
+		item_prefix="achieve", page_prefix="achieve",
+		item_label="достижение", items_per_page=8, row_width=2
+	)
 
 def send_stations_page(chat_id, message_id, page):
-	station_names = sorted(list(STATIONS.keys()))
-	total_pages = math.ceil(len(station_names) / ITEMS_PER_PAGE)
-	page = max(0, min(page, total_pages - 1))
-
-	start = page * ITEMS_PER_PAGE
-	end = start + ITEMS_PER_PAGE
-	current_items = station_names[start:end]
-
-	keyboard = InlineKeyboardMarkup(row_width=BUTTONS_PER_ROW)
-
-	buttons = [
-		InlineKeyboardButton(
-			text=current_items[index].capitalize(),
-			callback_data=f"station:{index+10*page}:{page}"
-		) for index in range(len(current_items))
-	]
-
-	logging.info(str([len(i.callback_data.encode('utf-8')) for i in buttons]))
-
-	for i in range(0, len(buttons), BUTTONS_PER_ROW):
-		keyboard.add(*buttons[i:i + BUTTONS_PER_ROW])
-
-	nav_buttons = []
-	if page > 0:
-		nav_buttons.append(InlineKeyboardButton("⬅️ Назад", callback_data=f"station_page:{page - 1}"))
-	if page < total_pages - 1:
-		nav_buttons.append(InlineKeyboardButton("Вперёд ➡️", callback_data=f"station_page:{page + 1}"))
-
-	if nav_buttons:
-		keyboard.add(*nav_buttons)
-
-	text = f"Выбери станцию (стр. {page + 1} из {total_pages})"
-
-	if message_id:
-		bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=text, reply_markup=keyboard)
-	else:
-		bot.send_message(chat_id, text, reply_markup=keyboard)
+	send_paginated_keyboard(
+		chat_id, message_id, list(STATIONS.keys()), page,
+		item_prefix="station", page_prefix="station",
+		item_label="станцию", items_per_page=10, row_width=2
+	)
 
 def send_technologies_page(chat_id, message_id, page):
-	technology_names = sorted(list(TECHNOLOGIES.keys()))
-	total_pages = math.ceil(len(technology_names) / ITEMS_PER_PAGE)
-	page = max(0, min(page, total_pages - 1))
-
-	start = page * ITEMS_PER_PAGE
-	end = start + ITEMS_PER_PAGE
-	current_items = technology_names[start:end]
-
-	keyboard = InlineKeyboardMarkup(row_width=BUTTONS_PER_ROW)
-
-	buttons = [
-		InlineKeyboardButton(
-			text=current_items[index].capitalize(),
-			callback_data=f"tech:{index+10*page}:{page}"
-		) for index in range(len(current_items))
-	]
-
-	for i in range(0, len(buttons), BUTTONS_PER_ROW):
-		keyboard.add(*buttons[i:i + BUTTONS_PER_ROW])
-
-	nav_buttons = []
-	if page > 0:
-		nav_buttons.append(InlineKeyboardButton("⬅️ Назад", callback_data=f"tech_page:{page - 1}"))
-	if page < total_pages - 1:
-		nav_buttons.append(InlineKeyboardButton("Вперёд ➡️", callback_data=f"tech_page:{page + 1}"))
-
-	if nav_buttons:
-		keyboard.add(*nav_buttons)
-
-	text = f"Выбери технологию (стр. {page + 1} из {total_pages})"
-
-	if message_id:
-		bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=text, reply_markup=keyboard)
-	else:
-		bot.send_message(chat_id, text, reply_markup=keyboard)
+	send_paginated_keyboard(
+		chat_id, message_id, list(TECHNOLOGIES.keys()), page,
+		item_prefix="tech", page_prefix="tech",
+		item_label="технологию", items_per_page=10, row_width=2
+	)
 
 def send_hazards_page(chat_id, message_id, page):
-	hazard_names = sorted(list(HAZARDS.keys()))
-	total_pages = math.ceil(len(hazard_names) / ITEMS_PER_PAGE)
-	page = max(0, min(page, total_pages - 1))
-
-	start = page * ITEMS_PER_PAGE
-	end = start + ITEMS_PER_PAGE
-	current_items = hazard_names[start:end]
-
-	keyboard = InlineKeyboardMarkup(row_width=BUTTONS_PER_ROW)
-
-	buttons = [
-		InlineKeyboardButton(
-			text=current_items[index].capitalize(),
-			callback_data=f"hazard:{index+10*page}:{page}"
-		) for index in range(len(current_items))
-	]
-
-	for i in range(0, len(buttons), BUTTONS_PER_ROW):
-		keyboard.add(*buttons[i:i + BUTTONS_PER_ROW])
-
-	nav_buttons = []
-	if page > 0:
-		nav_buttons.append(InlineKeyboardButton("⬅️ Назад", callback_data=f"hazard_page:{page - 1}"))
-	if page < total_pages - 1:
-		nav_buttons.append(InlineKeyboardButton("Вперёд ➡️", callback_data=f"hazard_page:{page + 1}"))
-
-	if nav_buttons:
-		keyboard.add(*nav_buttons)
-
-	text = f"Выбери угрозу (стр. {page + 1} из {total_pages})"
-
-	if message_id:
-		bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=text, reply_markup=keyboard)
-	else:
-		bot.send_message(chat_id, text, reply_markup=keyboard)
+	send_paginated_keyboard(
+		chat_id, message_id, list(HAZARDS.keys()), page,
+		item_prefix="hazard", page_prefix="hazard",
+		item_label="угрозу", items_per_page=10, row_width=2
+	)
 
 
 def send_alien_page(chat_id, message_id, page, game_id=None, player_id=None):
-	alien_names = sorted(list(ALIENS.keys()))
-	total_pages = math.ceil(len(alien_names) / ITEMS_PER_PAGE)
-	page = max(0, min(page, total_pages - 1))
+	def alien_callback(name, index, page):
+		if game_id and player_id:
+			return f"select_alien:{name}:{page}:{game_id}:{player_id}"
+		return f"alien:{name}:{page}"
 
-	start = page * ITEMS_PER_PAGE
-	end = start + ITEMS_PER_PAGE
-	current_items = alien_names[start:end]
+	def page_callback(new_page):
+		if game_id and player_id:
+			return f"page:{new_page}:{game_id}:{player_id}"
+		return f"page:{new_page}"
 
-	keyboard = InlineKeyboardMarkup(row_width=BUTTONS_PER_ROW)
-
-	if game_id and player_id:
-		buttons = [InlineKeyboardButton(text=name.capitalize(), callback_data=f"select_alien:{name}:{page}:{game_id}:{player_id}") for name in current_items]
-	else:
-		buttons = [InlineKeyboardButton(text=name.capitalize(), callback_data=f"alien:{name}:{page}") for name in current_items]
-
-	for i in range(0, len(buttons), BUTTONS_PER_ROW):
-		keyboard.add(*buttons[i:i + BUTTONS_PER_ROW])
-
-	nav_buttons = []
-	if page > 0:
-		nav_buttons.append(InlineKeyboardButton("⬅️ Назад", callback_data=f"page:{page - 1}:{game_id}:{player_id}" if game_id else f"page:{page - 1}"))
-	if page < total_pages - 1:
-		nav_buttons.append(InlineKeyboardButton("Вперёд ➡️", callback_data=f"page:{page + 1}:{game_id}:{player_id}" if game_id else f"page:{page + 1}"))
-	if nav_buttons:
-		keyboard.add(*nav_buttons)
-
-	text = f"Выбери пришельца (стр. {page + 1} из {total_pages})"
-
-	if message_id:
-		bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=text, reply_markup=keyboard)
-	else:
-		bot.send_message(chat_id, text, reply_markup=keyboard)
+	send_paginated_keyboard(
+		chat_id=chat_id,
+		message_id=message_id,
+		items=list(ALIENS.keys()),
+		page=page,
+		item_prefix="alien",
+		page_prefix="page",
+		item_label="пришельца",
+		items_per_page=10,
+		row_width=2,
+		callback_func=alien_callback,
+		page_callback_func=page_callback
+	)
 
 def send_other_photos(chat_id, object_name, is_private=True):
 	media = []
