@@ -24,6 +24,12 @@ def get_connection():
 	except Exception as e:
 		raise
 
+def check_player(telegram_id):
+	with get_connection() as conn:
+		with conn.cursor() as cur:
+			cur.execute("SELECT * FROM players WHERE id=%s", (telegram_id,))
+			return bool(cur.fetchone())
+
 def add_player(telegram_id):
 	with get_connection() as conn:
 		with conn.cursor() as cur:
@@ -60,6 +66,11 @@ def join_game(game_id, player_id, alien_name):
 				VALUES (%s, %s, %s, NULL, NULL)
 				ON CONFLICT DO NOTHING
 			""", (game_id, player_id, alien_name))
+
+def leave_from_game(game_id, player_id):
+	with get_connection() as conn:
+		with conn.cursor() as cur:
+			cur.execute("DELETE FROM game_players WHERE player_id=%s AND game_id=%s", (player_id,game_id))
 
 def set_player_result(game_id, player_id, is_winner, estimation):
 	with get_connection() as conn:

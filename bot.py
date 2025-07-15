@@ -19,6 +19,7 @@ ITEMS_PER_PAGE = 10
 BUTTONS_PER_ROW = 2
 DLC_LIST = ['технологии', 'награды', 'маркеры кораблей', 'диски союзов', 'космические станции', 'карточки угроз']
 pending_games = {}
+waitlist = {}
 selected_winners = {}
 
 
@@ -376,7 +377,7 @@ def user_profile(message):
 	for achievement in player_achievements:
 		achievements_message += f"\n  • {achievement['achievement']} - {achievement['date'].strftime('%d.%m.%Y %H:%M')}"
 
-	resp_mes = f"👤 Игрок: {bot.get_chat(message.from_user.id).username}\n🏅 Победы: {winrate}% | ⭐️ Средняя оценка: {avg_est}\n\n🧬 Персонажи: {alien_stat_message}\n{achievements_message}"
+	resp_mes = f"👤 Игрок: {bot.get_chat(message.from_user.id).username}\n🏅 Победы: {winrate}% | ⭐️ Средняя оценка: {avg_est}\n\n🧬 Пришельцы: {alien_stat_message}\n{achievements_message}"
 	bot.reply_to(message, resp_mes)
 
 @bot.message_handler(commands=['party'])
@@ -527,13 +528,15 @@ def callback_handler(call: CallbackQuery):
 
 		elif action == "create_game":
 			creator_id = int(data[1])
+			if not check_player(creator_id):
+				bot.answer_callback_query(call.id, "Напишите /start боту в личку")
+				return
 			if creator_id not in pending_games:
 				bot.answer_callback_query(call.id, "Ошибка: комментарий не найден")
 				return
 			comment = pending_games[creator_id]['comment']
 			dlc_list = list(pending_games[creator_id]['dlcs'])
 			game_id = create_game(comment, dlc_list, creator_id)
-			add_player(creator_id)
 			text, keyboard = create_game_message(game_id, creator_id, comment, dlc_list)
 			bot.send_message(call.message.chat.id, text, reply_markup=keyboard)
 			bot.delete_message(call.message.chat.id, call.message.message_id)
@@ -543,12 +546,16 @@ def callback_handler(call: CallbackQuery):
 		elif action == "join_game":
 			game_id = int(data[1])
 			player_id = call.from_user.id
-			if is_player_in_game(game_id, player_id):
-				bot.answer_callback_query(call.id, "Вы уже в игре!")
+			if not check_player(player_id):
+				bot.answer_callback_query(call.id, "Напишите /start боту в личку")
 				return
-			add_player(player_id)
-			send_alien_page(player_id, None, 0, game_id, player_id)
-			bot.answer_callback_query(call.id, "Выберите персонажа")
+			if is_player_in_game(game_id, player_id):
+				leave_from_game(game_id, player_id)
+				bot.answer_callback_query(call.id, "Вы вышли из игры!")
+				return
+			bot.send_message(player_id, f"Введите имя пришельца")
+			waitlist[player_id] = {'action':'select_alien', 'game_id':game_id}
+			bot.answer_callback_query(call.id, "Выберите пришельца")
 
 		elif action == "select_alien":
 			_, alien_name, page_str, game_id, player_id = data
@@ -560,10 +567,10 @@ def callback_handler(call: CallbackQuery):
 			try:
 				join_game(game_id, player_id, alien_name)
 				bot.delete_message(call.message.chat.id, call.message.message_id)
-				bot.send_message(player_id, f"Вы выбрали персонажа: {alien_name.capitalize()}")
-				bot.answer_callback_query(call.id, "Персонаж выбран!")
+				bot.send_message(player_id, f"Вы выбрали пришельца: {alien_name.capitalize()}")
+				bot.answer_callback_query(call.id, "Пришелец выбран!")
 			except ValueError:
-				bot.answer_callback_query(call.id, "Неверный персонаж, выберите снова")
+				bot.answer_callback_query(call.id, "Неверный пришелец, выберите снова")
 				send_alien_page(player_id, None, 0, game_id, player_id)
 
 		elif action == "end_game":
@@ -574,7 +581,7 @@ def callback_handler(call: CallbackQuery):
 			players = get_game_players(game_id)
 			for i in players:
 				if not i['alien']:
-					bot.answer_callback_query(call.id, f"Типуля @{bot.get_chat(i['player_id']).username} не выбрал персонажа!")
+					bot.answer_callback_query(call.id, f"Типуля @{bot.get_chat(i['player_id']).username} не выбрал пришельца!")
 					return
 			mark_game_as_over(game_id)
 			send_winner_selection(call.message.chat.id, game_id)
@@ -624,6 +631,26 @@ def callback_handler(call: CallbackQuery):
 
 @bot.message_handler(func=lambda message: True)
 def send_alien_image(message):
+	player_id = message.from_user.id
+	if player_id in waitlist:
+		pending_data = waitlist[player_id]
+		if pending_data['action'] == 'select_alien':
+			game_id = pending_data['game_id']
+			alien = message.text.lower().strip()
+			if alien not in ALIENS:
+				bot.reply_to(message, "Такого пришельца нет, попробуй еще")
+				return
+
+			if get_game(game_id)['is_over']:
+				bot.reply_to(message, "Игра уже завершена")
+				del(waitlist[player_id])
+				return
+			try:
+				join_game(game_id, player_id, alien)
+				bot.reply_to(message, f"Вы выбрали пришельца: {alien.capitalize()}")
+				del(waitlist[player_id])
+			except ValueError:
+				bot.reply_to(message, "Неверный пришелец, выберите снова")
 	try:
 		alien_name = message.text.lower().strip()
 		send_alien_photos(message.chat.id, alien_name, message.chat.id == message.from_user.id)
