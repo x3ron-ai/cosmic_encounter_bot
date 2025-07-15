@@ -135,9 +135,11 @@ def send_history_page(chat_id, player_games, page, message_id=None):
 		)
 
 		for opp in game['opponents']:
+			tg = bot.get_chat(opp['player_id'])
+			tg_name = f'@{tg.username} ({tg.first_name})' or f"{tg.first_name}"
 			status = "🏆" if opp["is_winner"] else "❌"
 			estimation = f'{opp["estimation"]}/5⭐' if opp["estimation"] is not None else "—"
-			response += f'• 👽 {opp["alien"].capitalize()} {status} — {estimation}\n'
+			response += f'• 👽 {opp["alien"].capitalize()} {status} ({tg_name}) — {estimation}\n'
 
 		response += f'\n🧩 Дополнения: {game["dlc"] or "—"}\n'
 		response += f'💬 Комментарий: {game["comment"] or "—"}\n\n'
