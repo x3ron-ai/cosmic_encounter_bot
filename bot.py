@@ -282,6 +282,14 @@ def eval_message(message):
 	if message.from_user.id == 818175547:
 		bot.send_message(message.chat.id, str(eval(message.text.replace('/ceval ', ''))))
 
+@bot.message_handler(commands=['analysis'])
+def analysis_handler(message):
+	with open('data/analysis.txt') as f:
+		analysis = f.read().split('///')
+
+	for i in analysis:
+		bot.reply_to(message, i)
+
 @bot.message_handler(commands=['site'])
 def site_message(message):
 	bot.reply_to(message, 'Омагад!!! https://t.me/addemoji/CosmicEncounter')
