@@ -1,7 +1,7 @@
 import telebot, os, logging, math
 from telebot.types import InputFile, InputMediaPhoto, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from dotenv import load_dotenv
-from cc_data import ALIENS, ESSENCE_ALIENS, FLARES, TECHNOLOGIES, HAZARDS, STATIONS, LOCALIZATION_EN, ACHIEVEMENTS
+from cc_data import ALIENS, ESSENCE_ALIENS, FLARES, TECHNOLOGIES, HAZARDS, STATIONS, LOCALIZATION_EN, ACHIEVEMENTS, ARTIFACTS
 from stats import *
 from datetime import datetime
 
@@ -65,6 +65,13 @@ def send_achievements_page(chat_id, message_id, page):
 		chat_id, message_id, list(ACHIEVEMENTS.keys()), page,
 		item_prefix="achieve", page_prefix="achieve",
 		item_label="достижение", items_per_page=8, row_width=2
+	)
+
+def send_artifacts_page(chat_id, message_id, page):
+	send_paginated_keyboard(
+		chat_id, message_id, list(ARTIFACTS.keys()), page,
+		item_prefix="art", page_prefix="art",
+		item_label="артефакт", items_per_page=8, row_width=2
 	)
 
 def send_stations_page(chat_id, message_id, page):
@@ -163,12 +170,17 @@ def send_history_page(chat_id, player_games, page, message_id=None):
 def send_other_photos(chat_id, object_name, is_private=True):
 	media = []
 
-	all_photos = {**HAZARDS, **TECHNOLOGIES, **STATIONS}
+	all_photos = {**HAZARDS, **TECHNOLOGIES, **STATIONS, **ARTIFACTS}
 	image_path = all_photos[object_name]
-	if os.path.exists(image_path):
-		media.append(InputMediaPhoto(media=open(image_path, 'rb'), caption=f"Карта: {object_name.capitalize()}"))
-	else:
-		logging.warning(f"Файл не найден: {image_path}")
+	if type(image_path) != list:
+		image_path = [image_path]
+
+	for photo in image_path:
+		if os.path.exists(photo):
+			card_name = photo.split('/')[-1].replace('_', ' ').replace('.jpg', '')
+			media.append(InputMediaPhoto(media=open(photo, 'rb'), caption=f"Карта: {card_name.capitalize()}"))
+		else:
+			logging.warning(f"Файл не найден: {image_path}")
 	bot.send_media_group(chat_id, media)
 
 def send_alien_photos(chat_id, alien_name, is_private=True):
@@ -294,6 +306,10 @@ def stations_handler(message):
 def stations_handler(message):
 	send_technologies_page(chat_id=message.chat.id, message_id=None, page=0)
 
+@bot.message_handler(commands=['artifacts'])
+def artifacts_handler(message):
+	send_artifacts_page(chat_id=message.chat.id, message_id=None, page=0)
+
 @bot.message_handler(commands=['hazards'])
 def stations_handler(message):
 	send_hazards_page(chat_id=message.chat.id, message_id=None, page=0)
@@ -407,10 +423,18 @@ def callback_handler(call: CallbackQuery):
 			_, hazard_index, page_str = data
 			page = int(page_str)
 			bot.delete_message(call.message.chat.id, call.message.message_id)
-			logging.info(list(HAZARDS)[int(hazard_index)])
 			send_other_photos(call.message.chat.id, list(HAZARDS)[int(hazard_index)])
 			send_hazards_page(call.message.chat.id, message_id=None, page=page)
 			bot.answer_callback_query(call.id)
+
+		elif action == "art":
+			_, art_index, page_str = data
+			page = int(page_str)
+			bot.delete_message(call.message.chat.id, call.message.message_id)
+			send_other_photos(call.message.chat.id, list(ARTIFACTS)[int(art_index)])
+			send_artifacts_page(call.message.chat.id, message_id=None, page=page)
+			bot.answer_callback_query(call.id)
+
 		elif action == "history":
 			_, page_str = data
 			page = int(page_str)
@@ -471,6 +495,11 @@ def callback_handler(call: CallbackQuery):
 		elif action == "tech_page":
 			page = int(data[1])
 			send_technologies_page(call.message.chat.id, call.message.message_id, page)
+			bot.answer_callback_query(call.id)
+
+		elif action == "art_page":
+			page = int(data[1])
+			send_artifacts_page(call.message.chat.id, call.message.message_id, page)
 			bot.answer_callback_query(call.id)
 
 		elif action == "hazard_page":

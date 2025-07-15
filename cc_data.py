@@ -15,3 +15,5 @@ HAZARDS = json.loads(open('data/hazards.json').read())
 LOCALIZATION_EN = json.loads(open('data/localization_en.json').read())
 
 ACHIEVEMENTS = json.loads(open('data/achievements.json').read())
+
+ARTIFACTS = json.loads(open('data/artifacts.json').read())
