@@ -171,6 +171,9 @@ def send_other_photos(chat_id, object_name, is_private=True):
 
 def send_alien_photos(chat_id, alien_name, is_private=True):
 	media = []
+	loc_rev = {k.lower(): i for i, k in LOCALIZATION_EN.items()}
+	if alien_name in loc_rev:
+		alien_name = loc_rev[alien_name]
 
 	if alien_name in ALIENS:
 		image_path = ALIENS[alien_name]
