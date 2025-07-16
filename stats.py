@@ -35,6 +35,12 @@ def add_player(telegram_id):
 		with conn.cursor() as cur:
 			cur.execute("INSERT INTO players (id) VALUES (%s) ON CONFLICT DO NOTHING", (telegram_id,))
 
+def get_alien_stats(alien):
+	with get_connection() as conn:
+		with conn.cursor() as cur:
+			cur.execute("SELECT * FROM game_players WHERE alien=%s", (alien,))
+			return cur.fetchall()
+
 def create_game(comment, dlc_list, creator_id):
 	dlc_str = ", ".join(dlc_list) if dlc_list else ""
 	with get_connection() as conn:

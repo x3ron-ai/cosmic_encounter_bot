@@ -132,8 +132,9 @@ def send_history_page(chat_id, player_games, page, message_id=None):
 	current_page_games = player_games[start:end]
 
 	response = f"📜 История игр (стр. {page + 1} из {total_pages}):\n\n"
-
 	for game in current_page_games:
+		estimations = []
+
 		response += (
 			f'🎮 Игра #{game["game_id"]} {"🏆 Победа!" if game["am_i_winner"] else "❌ Поражение"}\n'
 			f'👽 Ты играл за: {game["my_alien"].capitalize()}\n'
@@ -141,14 +142,17 @@ def send_history_page(chat_id, player_games, page, message_id=None):
 			f'🗓️ Дата: {game["date"].strftime("%d.%m.%Y %H:%M")}\n\n'
 			'🤼♂️ Противники:\n'
 		)
+		estimations.append(game["my_estimation"])
 
 		for opp in game['opponents']:
 			tg = bot.get_chat(opp['player_id'])
 			tg_name = f'@{tg.username} ({tg.first_name})' or f"{tg.first_name}"
 			status = "🏆" if opp["is_winner"] else "❌"
 			estimation = f'{opp["estimation"]}/5⭐' if opp["estimation"] is not None else "—"
+			estimations.append(opp["estimation"])
 			response += f'• 👽 {opp["alien"].capitalize()} {status} ({tg_name}) — {estimation}\n'
 
+		response += f'\n🌟 Оценка партии: {format_integer(round(sum(estimations) / len(estimations), 2))}\n'
 		response += f'\n🧩 Дополнения: {game["dlc"] or "—"}\n'
 		response += f'💬 Комментарий: {game["comment"] or "—"}\n\n'
 
@@ -218,6 +222,33 @@ def send_alien_photos(chat_id, alien_name, is_private=True):
 	if media:
 		try:
 			bot.send_media_group(chat_id, media)
+			alien_stats = get_alien_stats(alien_name)
+			games_count = len(alien_stats)
+			if alien_stats == []: return
+
+			winrate = len([i for i in alien_stats if i['is_winner']]) / games_count * 100
+			avg_est = sum([i['estimation'] for i in alien_stats])
+
+			games_ids = [i['game_id'] for i in alien_stats]
+			other_estimations = []
+			for game in alien_stats:
+				game_players = get_game_players(game['game_id'])
+				alien_player = [i['player_id'] for i in game_players if i['alien'] == alien_name][0]
+				[other_estimations.append((i['estimation'], i['is_winner'])) for i in game_players if i['player_id'] != alien_player]
+
+			winrate_vs_alien = format_integer(round(len([i for i in other_estimations if i[1]]) / len(other_estimations)*100, 2))
+			avg_est_vs_alien = format_integer(sum([i[0] for i in other_estimations]) / len(other_estimations))
+
+			bot.send_message(chat_id,
+				f'👽 *Статистика пришельца:*\n\n'
+				f'🎮 Кол-во игр: *{games_count}*\n'
+				f'🏆 Процент побед: *{format_integer(round(winrate, 2))}%*\n'
+				f'⚔️ Винрейт остальных с персонажем: *{format_integer(round(winrate_vs_alien, 2))}%*\n'
+				f'🌟 Средняя оценка игр: *{format_integer(round(avg_est, 2))}*\n'
+				f'⭐ Оценка игры против персонажа: *{format_integer(round(avg_est_vs_alien, 2))}*',
+				parse_mode='Markdown'
+			)
+
 		except Exception as e:
 			logging.error(f"Ошибка при отправке альбома: {e}")
 			bot.send_message(chat_id, "Ошибка при отправке изображений")
@@ -311,7 +342,7 @@ def achievements_handler(message):
 def stations_handler(message):
 	send_stations_page(chat_id=message.chat.id, message_id=None, page=0)
 
-@bot.message_handler(commands=['technologies'])
+@bot.message_handler(commands=['technologies', 'tech'])
 def stations_handler(message):
 	send_technologies_page(chat_id=message.chat.id, message_id=None, page=0)
 
