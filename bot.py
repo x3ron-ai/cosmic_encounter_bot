@@ -357,6 +357,9 @@ def player_history(message):
 @bot.message_handler(commands=['profile'])
 def user_profile(message):
 	player_games = get_player_stats(message.from_user.id)
+
+	wl = ' '.join(['W' if i['am_i_winner'] else 'L' for i in player_games][-5:][::-1])
+
 	player_achievements = get_player_achievements(message.from_user.id)
 
 	winrate = winrate_calculator(player_games)
@@ -377,7 +380,7 @@ def user_profile(message):
 	for achievement in player_achievements:
 		achievements_message += f"\n  • {achievement['achievement']} - {achievement['date'].strftime('%d.%m.%Y %H:%M')}"
 
-	resp_mes = f"👤 Игрок: {bot.get_chat(message.from_user.id).username}\n🏅 Победы: {winrate}% | ⭐️ Средняя оценка: {avg_est}\n\n🧬 Пришельцы: {alien_stat_message}\n{achievements_message}"
+	resp_mes = f"👤 Игрок: {bot.get_chat(message.from_user.id).username}\n🏆 {wl}\n🏅 Победы: {winrate}% | ⭐️ Средняя оценка: {avg_est}\n\n🧬 Пришельцы: {alien_stat_message}\n{achievements_message}"
 	bot.reply_to(message, resp_mes)
 
 @bot.message_handler(commands=['party'])
