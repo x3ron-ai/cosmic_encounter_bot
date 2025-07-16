@@ -636,7 +636,11 @@ def send_alien_image(message):
 		pending_data = waitlist[player_id]
 		if pending_data['action'] == 'select_alien':
 			game_id = pending_data['game_id']
+			loc_rev = {k.lower(): i for i, k in LOCALIZATION_EN.items()}
+
 			alien = message.text.lower().strip()
+			if alien in loc_rev:
+				alien = loc_rev[alien]
 			if alien not in ALIENS:
 				bot.reply_to(message, "Такого пришельца нет, попробуй еще")
 				return
