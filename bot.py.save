@@ -132,9 +132,8 @@ def send_history_page(chat_id, player_games, page, message_id=None):
 	current_page_games = player_games[start:end]
 
 	response = f"📜 История игр (стр. {page + 1} из {total_pages}):\n\n"
-	for game in current_page_games:
-		estimations = []
 
+	for game in current_page_games:
 		response += (
 			f'🎮 Игра #{game["game_id"]} {"🏆 Победа!" if game["am_i_winner"] else "❌ Поражение"}\n'
 			f'👽 Ты играл за: {game["my_alien"].capitalize()}\n'
@@ -142,17 +141,14 @@ def send_history_page(chat_id, player_games, page, message_id=None):
 			f'🗓️ Дата: {game["date"].strftime("%d.%m.%Y %H:%M")}\n\n'
 			'🤼♂️ Противники:\n'
 		)
-		estimations.append(game["my_estimation"])
 
 		for opp in game['opponents']:
 			tg = bot.get_chat(opp['player_id'])
 			tg_name = f'@{tg.username} ({tg.first_name})' or f"{tg.first_name}"
 			status = "🏆" if opp["is_winner"] else "❌"
 			estimation = f'{opp["estimation"]}/5⭐' if opp["estimation"] is not None else "—"
-			estimations.append(opp["estimation"])
 			response += f'• 👽 {opp["alien"].capitalize()} {status} ({tg_name}) — {estimation}\n'
 
-		response += f'\n🌟 Оценка партии: {format_integer(round(sum(estimations) / len(estimations), 2))}\n'
 		response += f'\n🧩 Дополнения: {game["dlc"] or "—"}\n'
 		response += f'💬 Комментарий: {game["comment"] or "—"}\n\n'
 
@@ -222,33 +218,6 @@ def send_alien_photos(chat_id, alien_name, is_private=True):
 	if media:
 		try:
 			bot.send_media_group(chat_id, media)
-			alien_stats = get_alien_stats(alien_name)
-			games_count = len(alien_stats)
-			if alien_stats == []: return
-
-			winrate = len([i for i in alien_stats if i['is_winner']]) / games_count * 100
-			avg_est = sum([i['estimation'] for i in alien_stats])
-
-			games_ids = [i['game_id'] for i in alien_stats]
-			other_estimations = []
-			for game in alien_stats:
-				game_players = get_game_players(game['game_id'])
-				alien_player = [i['player_id'] for i in game_players if i['alien'] == alien_name][0]
-				[other_estimations.append((i['estimation'], i['is_winner'])) for i in game_players if i['player_id'] != alien_player]
-
-			winrate_vs_alien = format_integer(round(len([i for i in other_estimations if i[1]]) / len(other_estimations)*100, 2))
-			avg_est_vs_alien = format_integer(sum([i[0] for i in other_estimations]) / len(other_estimations))
-
-			bot.send_message(chat_id,
-				f'👽 *Статистика пришельца:*\n\n'
-				f'🎮 Кол-во игр: *{games_count}*\n'
-				f'🏆 Процент побед: *{format_integer(round(winrate, 2))}%*\n'
-				f'⚔️ Винрейт остальных с персонажем: *{format_integer(round(winrate_vs_alien, 2))}%*\n'
-				f'🌟 Средняя оценка игр: *{format_integer(round(avg_est, 2))}*\n'
-				f'⭐ Оценка игры против персонажа: *{format_integer(round(avg_est_vs_alien, 2))}*',
-				parse_mode='Markdown'
-			)
-
 		except Exception as e:
 			logging.error(f"Ошибка при отправке альбома: {e}")
 			bot.send_message(chat_id, "Ошибка при отправке изображений")
@@ -342,7 +311,7 @@ def achievements_handler(message):
 def stations_handler(message):
 	send_stations_page(chat_id=message.chat.id, message_id=None, page=0)
 
-@bot.message_handler(commands=['technologies', 'tech'])
+@bot.message_handler(commands=['technologies'])
 def stations_handler(message):
 	send_technologies_page(chat_id=message.chat.id, message_id=None, page=0)
 
@@ -388,9 +357,6 @@ def player_history(message):
 @bot.message_handler(commands=['profile'])
 def user_profile(message):
 	player_games = get_player_stats(message.from_user.id)
-
-	wl = ' '.join(['W' if i['am_i_winner'] else 'L' for i in player_games][-5:][::-1])
-
 	player_achievements = get_player_achievements(message.from_user.id)
 
 	winrate = winrate_calculator(player_games)
@@ -411,7 +377,7 @@ def user_profile(message):
 	for achievement in player_achievements:
 		achievements_message += f"\n  • {achievement['achievement']} - {achievement['date'].strftime('%d.%m.%Y %H:%M')}"
 
-	resp_mes = f"👤 Игрок: {bot.get_chat(message.from_user.id).username}\n🏆 {wl}\n🏅 Победы: {winrate}% | ⭐️ Средняя оценка: {avg_est}\n\n🧬 Пришельцы: {alien_stat_message}\n{achievements_message}"
+	resp_mes = f"👤 Игрок: {bot.get_chat(message.from_user.id).username}\n🏅 Победы: {winrate}% | ⭐️ Средняя оценка: {avg_est}\n\n🧬 Пришельцы: {alien_stat_message}\n{achievements_message}"
 	bot.reply_to(message, resp_mes)
 
 @bot.message_handler(commands=['party'])
@@ -663,48 +629,34 @@ def callback_handler(call: CallbackQuery):
 		bot.answer_callback_query(call.id, "Произошла ошибка")
 		raise
 
-@bot.message_handler(commands=['e'])
-def catch_custom_emoji(message):
-	if message.entities:
-		for ent in message.entities:
-			if ent.type == 'custom_emoji':
-				custom_emoji_id = ent.custom_emoji_id
-				bot.send_message(message.chat.id, f'Эмоджи: `\"{message.text.split(":")[-1]}\": {custom_emoji_id},`', parse_mode='Markdown')
-
-
-@bot.message_handler(func=lambda message: message.chat.id == message.from_user.id)
+@bot.message_handler(func=lambda message: True)
 def send_alien_image(message):
-	player_id = message.from_user.id
 	if player_id in waitlist:
 		pending_data = waitlist[player_id]
 		if pending_data['action'] == 'select_alien':
 			game_id = pending_data['game_id']
-			loc_rev = {k.lower(): i for i, k in LOCALIZATION_EN.items()}
-
 			alien = message.text.lower().strip()
-			if alien in loc_rev:
-				alien = loc_rev[alien]
 			if alien not in ALIENS:
 				bot.reply_to(message, "Такого пришельца нет, попробуй еще")
 				return
-
 			if get_game(game_id)['is_over']:
-				bot.reply_to(message, "Игра уже завершена")
-				del(waitlist[player_id])
-				return
-			try:
-				join_game(game_id, player_id, alien)
-				bot.reply_to(message, f"Вы выбрали пришельца: {alien.capitalize()}")
-				del(waitlist[player_id])
-			except ValueError:
-				bot.reply_to(message, "Неверный пришелец, выберите снова")
+                                bot.delete_message(call.message.chat.id, call.message.message_id)
+                                bot.answer_callback_query(call.id, "Игра уже завершена!")
+                                return                                                                                                                                                                              try:
+                                join_game(game_id, player_id, alien_name)
+                                bot.delete_message(call.message.chat.id, call.message.message_id)
+                                bot.send_message(player_id, f"Вы выбрали пришельца: {alien_name.capitalize()}")
+                                bot.answer_callback_query(call.id, "Пришелец выбран!")
+                        except ValueError:
+                                bot.answer_callback_query(call.id, "Неверный пришелец, выберите снова")
+                                send_alien_page(player_id, None, 0, game_id, player_id)
+
 	try:
 		alien_name = message.text.lower().strip()
 		send_alien_photos(message.chat.id, alien_name, message.chat.id == message.from_user.id)
 	except Exception as e:
 		logging.error(f"Ошибка в send_alien_image: {e}")
 		bot.reply_to(message, "Произошла ошибка при обработке запроса.")
-
 
 if __name__ == '__main__':
 	try:
