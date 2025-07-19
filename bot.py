@@ -253,7 +253,7 @@ def send_alien_photos(chat_id, alien_name, is_private=True):
 			logging.error(f"Ошибка при отправке альбома: {e}")
 			bot.send_message(chat_id, "Ошибка при отправке изображений")
 	else:
-		if is_private: bot.send_message(chat_id, "А где а нет")
+		if is_private: bot.send_message(chat_id, f"{alien_name}.\nА где а нет")
 
 def create_game_message(game_id, creator_id, comment, dlc_list):
 	creator = bot.get_chat(creator_id).username or f"User{creator_id}"
@@ -699,7 +699,7 @@ def send_alien_image(message):
 			except ValueError:
 				bot.reply_to(message, "Неверный пришелец, выберите снова")
 	try:
-		alien_name = message.text.lower().strip()
+		alien_name = message.text.replace('ё', 'е').lower().strip()
 		send_alien_photos(message.chat.id, alien_name, message.chat.id == message.from_user.id)
 	except Exception as e:
 		logging.error(f"Ошибка в send_alien_image: {e}")
