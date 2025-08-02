@@ -712,4 +712,3 @@ if __name__ == '__main__':
 		bot.infinity_polling()
 	except Exception as e:
 		logging.error(f"Ошибка в основном цикле: {e}")
-
