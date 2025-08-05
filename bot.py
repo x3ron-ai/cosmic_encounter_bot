@@ -146,31 +146,35 @@ def send_history_page(chat_id, player_games, page, message_id=None):
 
 		for opp in game['opponents']:
 			tg = bot.get_chat(opp['player_id'])
-			tg_name = f'@{tg.username} ({tg.first_name})' or f"{tg.first_name}"
+			tg_name = f'@{tg.username} ({tg.first_name})' if tg.username else f"{tg.first_name}"
 			status = "🏆" if opp["is_winner"] else "❌"
 			estimation = f'{opp["estimation"]}/5⭐' if opp["estimation"] is not None else "—"
 			estimations.append(opp["estimation"])
 			response += f'• 👽 {opp["alien"].capitalize()} {status} ({tg_name}) — {estimation}\n'
 
-		response += f'\n🌟 Оценка партии: {format_integer(round(sum(estimations) / len(estimations), 2))}\n'
+		response += f'\n🌟 Оценка партии: {format_integer(round(sum([e for e in estimations if e is not None]) / len([e for e in estimations if e is not None]), 2))}\n'
 		response += f'\n🧩 Дополнения: {game["dlc"] or "—"}\n'
 		response += f'💬 Комментарий: {game["comment"] or "—"}\n\n'
 
-	# Клавиатура навигации
-	keyboard = InlineKeyboardMarkup(row_width=2)
-	nav_buttons = []
+		keyboard = InlineKeyboardMarkup(row_width=2)
+		keyboard.add(InlineKeyboardButton(
+			"✏️ Изменить оценку",
+			callback_data=f"change_rating:{game['game_id']}:{int(game['am_i_winner'])}"
+		))
 
-	if page > 0:
-		nav_buttons.append(InlineKeyboardButton("⬅️ Назад", callback_data=f"history:{page - 1}"))
-	if page < total_pages - 1:
-		nav_buttons.append(InlineKeyboardButton("Вперёд ➡️", callback_data=f"history:{page + 1}"))
+		nav_buttons = []
+		if page > 0:
+			nav_buttons.append(InlineKeyboardButton("⬅️ Назад", callback_data=f"history:{page - 1}"))
+		if page < total_pages - 1:
+			nav_buttons.append(InlineKeyboardButton("Вперёд ➡️", callback_data=f"history:{page + 1}"))
 
-	if nav_buttons:
-		keyboard.add(*nav_buttons)
-	if message_id:
-		bot.edit_message_text(chat_id=chat_id,message_id=message_id,text=response,reply_markup=keyboard)
-	else:
-		bot.send_message(chat_id, response, reply_markup=keyboard)
+		if nav_buttons:
+			keyboard.add(*nav_buttons)
+
+		if message_id:
+			bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=response, reply_markup=keyboard)
+		else:
+			bot.send_message(chat_id, response, reply_markup=keyboard)
 
 def send_other_photos(chat_id, object_name, is_private=True):
 	media = []
@@ -477,6 +481,13 @@ def callback_handler(call: CallbackQuery):
 			send_other_photos(call.message.chat.id, sorted(list(ARTIFACTS))[int(art_index)])
 			send_artifacts_page(call.message.chat.id, message_id=None, page=page)
 			bot.answer_callback_query(call.id)
+
+		elif action == "change_rating":
+			game_id, is_winner = map(int, data[1:3])
+			player_id = call.from_user.id
+			send_rating_request(call.message.chat.id, game_id, player_id, is_winner)
+			bot.delete_message(call.message.chat.id, call.message.message_id)
+			bot.answer_callback_query(call.id, "Выберите новую оценку")
 
 		elif action == "history":
 			_, page_str = data
