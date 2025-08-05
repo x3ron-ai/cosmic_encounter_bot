@@ -70,7 +70,7 @@ def send_achievements_page(chat_id, message_id, page):
 
 def send_artifacts_page(chat_id, message_id, page):
 	send_paginated_keyboard(
-		chat_id, message_id, list(ARTIFACTS.keys()), page,
+		chat_id, message_id, sorted(list(ARTIFACTS.keys())), page,
 		item_prefix="art", page_prefix="art",
 		item_label="артефакт", items_per_page=8, row_width=2
 	)
@@ -389,7 +389,7 @@ def player_history(message):
 def user_profile(message):
 	player_games = get_player_stats(message.from_user.id)
 
-	wl = ' '.join(['W' if i['am_i_winner'] else 'L' for i in player_games][-5:][::-1])
+	wl = ' '.join(['W' if i['am_i_winner'] else 'L' for i in player_games][:5])
 
 	player_achievements = get_player_achievements(message.from_user.id)
 
@@ -474,7 +474,7 @@ def callback_handler(call: CallbackQuery):
 			_, art_index, page_str = data
 			page = int(page_str)
 			bot.delete_message(call.message.chat.id, call.message.message_id)
-			send_other_photos(call.message.chat.id, list(ARTIFACTS)[int(art_index)])
+			send_other_photos(call.message.chat.id, sorted(list(ARTIFACTS))[int(art_index)])
 			send_artifacts_page(call.message.chat.id, message_id=None, page=page)
 			bot.answer_callback_query(call.id)
 
