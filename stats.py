@@ -30,10 +30,10 @@ def check_player(telegram_id):
 			cur.execute("SELECT * FROM players WHERE id=%s", (telegram_id,))
 			return bool(cur.fetchone())
 
-def add_player(telegram_id):
+def add_player(tg_user):
 	with get_connection() as conn:
 		with conn.cursor() as cur:
-			cur.execute("INSERT INTO players (id) VALUES (%s) ON CONFLICT DO NOTHING", (telegram_id,))
+			cur.execute("INSERT INTO players (id, username, first_name) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING", (tg_user.id, tg_user.username or '', tg_user.firstname or ''))
 
 def get_alien_stats(alien):
 	with get_connection() as conn:

@@ -333,7 +333,7 @@ def site_message(message):
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
 	try:
-		add_player(message.from_user.id)
+		add_player(bot.get_chat(message.from_user.id))
 		bot.reply_to(message, "Напиши нужного пришельца или выбери его в /aliens")
 	except Exception as e:
 		logging.error(f"Ошибка в send_welcome: {e}")
