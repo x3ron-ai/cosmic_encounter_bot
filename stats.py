@@ -48,6 +48,14 @@ def create_game(comment, dlc_list, creator_id):
 			cur.execute("INSERT INTO games (comment, dlc, creator_id) VALUES (%s, %s, %s) RETURNING id", (comment, dlc_str, creator_id))
 			return cur.fetchone()['id']
 
+def delete_game(game_id):
+	with get_connection() as conn:
+		with conn.cursor() as cur:
+			cur.execute("DELETE FROM game_players WHERE game_id = %s", (game_id,))
+			cur.execute("DELETE FROM games WHERE id=%s", (game_id,))
+			conn.commit()
+			return ":("
+
 def get_game(game_id):
 	with get_connection() as conn:
 		with conn.cursor() as cur:
@@ -60,10 +68,11 @@ def list_games():
 			cur.execute("SELECT * FROM games ORDER BY date DESC")
 			return cur.fetchall()
 
-def join_game(game_id, player_id, alien_name):
-	alien_name = alien_name.lower()
-	if alien_name not in aliens:
-		raise ValueError("Unknown alien name")
+def join_game(game_id, player_id, alien_name=None):
+	if alien_name:
+		alien_name = alien_name.lower()
+		if alien_name not in aliens:
+			raise ValueError("Unknown alien name")
 
 	with get_connection() as conn:
 		with conn.cursor() as cur:
@@ -156,12 +165,13 @@ def get_player_stats(player_id):
 					g.date,
 					gp.alien AS my_alien,
 					gp.estimation AS my_estimation,
-					gp.is_winner AS am_i_winner
+					gp.is_winner AS am_i_winner,
+					gp.player_id
 				FROM games g
-				JOIN game_players gp ON g.id = gp.game_id
-				WHERE gp.player_id = %s
+				LEFT JOIN game_players gp ON g.id = gp.game_id AND gp.player_id = %s
+				WHERE g.creator_id = %s OR gp.player_id = %s
 				ORDER BY g.date DESC
-			""", (player_id,))
+			""", (player_id, player_id, player_id))
 			games = cur.fetchall()
 
 			for game in games:
@@ -177,4 +187,11 @@ def get_player_stats(player_id):
 				""", (game_id, player_id))
 				game['opponents'] = cur.fetchall()
 
+				if game['player_id'] is None:
+					game['player_id'] = player_id
+					game['my_alien'] = "НЕ_ИГРОК"
+					game['my_estimation'] = 0
+					game['am_i_winner'] = False
+
 			return games
+

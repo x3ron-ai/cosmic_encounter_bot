@@ -19,6 +19,7 @@ ITEMS_PER_PAGE = 10
 BUTTONS_PER_ROW = 2
 DLC_LIST = ['технологии', 'награды', 'маркеры кораблей', 'диски союзов', 'космические станции', 'карточки угроз']
 pending_games = {}
+pending_game_players = {}
 waitlist = {}
 selected_winners = {}
 
@@ -123,58 +124,62 @@ def send_alien_page(chat_id, message_id, page, game_id=None, player_id=None):
 	)
 
 def send_history_page(chat_id, player_games, page, message_id=None):
-	ITEMS_PER_PAGE = 1
-	total_pages = math.ceil(len(player_games) / ITEMS_PER_PAGE)
-	page = max(0, min(page, total_pages - 1))
+	if not player_games or page >= len(player_games):
+		bot.send_message(chat_id, "Игра не найдена.")
+		return
 
-	start = page * ITEMS_PER_PAGE
-	end = start + ITEMS_PER_PAGE
-	current_page_games = player_games[start:end]
+	game = player_games[page]
+	player_id = game['player_id']
+	creator_id = game['creator_id']
 
-	response = f"📜 История игр (стр. {page + 1} из {total_pages}):\n\n"
-	for game in current_page_games:
-		estimations = []
+	estimations = []
 
-		response += (
-			f'🎮 Игра #{game["game_id"]} {"🏆 Победа!" if game["am_i_winner"] else "❌ Поражение"}\n'
-			f'👽 Ты играл за: {game["my_alien"].capitalize()}\n'
-			f'⭐ Твоя оценка: {game["my_estimation"]}/5\n'
-			f'🗓️ Дата: {game["date"].strftime("%d.%m.%Y %H:%M")}\n\n'
-			'🤼♂️ Противники:\n'
-		)
-		estimations.append(game["my_estimation"])
+	response = (
+		f'📜 История игр (игра {page + 1} из {len(player_games)}):\n\n'
+		f'🎮 Игра #{game["game_id"]} {"🏆 Победа!" if game["am_i_winner"] else "❌ Поражение"}\n'
+		f'👽 Ты играл за: {game["my_alien"].capitalize() if game["my_alien"] else "Nonono"}\n'
+		f'⭐ Твоя оценка: {game["my_estimation"]}/5\n'
+		f'🗓️ Дата: {game["date"].strftime("%d.%m.%Y %H:%M")}\n\n'
+		'🤼‍♂️ Противники:\n'
+	)
+	estimations.append(game["my_estimation"])
 
-		for opp in game['opponents']:
-			tg = bot.get_chat(opp['player_id'])
-			tg_name = f'@{tg.username} ({tg.first_name})' if tg.username else f"{tg.first_name}"
-			status = "🏆" if opp["is_winner"] else "❌"
-			estimation = f'{opp["estimation"]}/5⭐' if opp["estimation"] is not None else "—"
-			estimations.append(opp["estimation"])
-			response += f'• 👽 {opp["alien"].capitalize()} {status} ({tg_name}) — {estimation}\n'
+	for opp in game['opponents']:
+		tg = bot.get_chat(opp['player_id'])
+		tg_name = f'@{tg.username} ({tg.first_name})' if tg.username else f"{tg.first_name}"
+		status = "🏆" if opp["is_winner"] else "❌"
+		estimation = f'{opp["estimation"]}/5⭐' if opp["estimation"] is not None else "—"
+		estimations.append(opp["estimation"])
+		response += f'• 👽 {opp["alien"].capitalize()} {status} ({tg_name}) — {estimation}\n'
 
-		response += f'\n🌟 Оценка партии: {format_integer(round(sum([e for e in estimations if e is not None]) / len([e for e in estimations if e is not None]), 2))}\n'
-		response += f'\n🧩 Дополнения: {game["dlc"] or "—"}\n'
-		response += f'💬 Комментарий: {game["comment"] or "—"}\n\n'
+	try: response += f'\n🌟 Оценка партии: {format_integer(round(sum([e for e in estimations if e is not None]) / len([e for e in estimations if e is not None]), 2))}\n'
+	except: pass
+	response += f'\n🧩 Дополнения: {game["dlc"] or "—"}\n'
+	response += f'💬 Комментарий: {game["comment"] or "—"}\n'
 
-		keyboard = InlineKeyboardMarkup(row_width=2)
-		keyboard.add(InlineKeyboardButton(
-			"✏️ Изменить оценку",
-			callback_data=f"change_rating:{game['game_id']}:{int(game['am_i_winner'])}"
-		))
+	keyboard = InlineKeyboardMarkup(row_width=3)
+	keyboard.add(InlineKeyboardButton(
+		"✏️ Изменить оценку",
+		callback_data=f"change_rating:{game['game_id']}:{int(game['am_i_winner'] or 0)}"
+	))
 
-		nav_buttons = []
-		if page > 0:
-			nav_buttons.append(InlineKeyboardButton("⬅️ Назад", callback_data=f"history:{page - 1}"))
-		if page < total_pages - 1:
-			nav_buttons.append(InlineKeyboardButton("Вперёд ➡️", callback_data=f"history:{page + 1}"))
+	nav_buttons = []
+	if page > 0:
+		nav_buttons.append(InlineKeyboardButton("⬅️ Назад", callback_data=f"history:{page - 1}"))
+	if page < len(player_games) - 1:
+		nav_buttons.append(InlineKeyboardButton("Вперёд ➡️", callback_data=f"history:{page + 1}"))
 
-		if nav_buttons:
-			keyboard.add(*nav_buttons)
+	if nav_buttons:
+		keyboard.add(*nav_buttons)
 
-		if message_id:
-			bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=response, reply_markup=keyboard)
-		else:
-			bot.send_message(chat_id, response, reply_markup=keyboard)
+	if player_id == creator_id and len(get_game_players(game['game_id'])) <= 2:
+		keyboard.add(InlineKeyboardButton("Удалить игру", callback_data=f"deletegame:{game['game_id']}"))
+
+	if message_id:
+		bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=response, reply_markup=keyboard)
+	else:
+		bot.send_message(chat_id, response, reply_markup=keyboard)
+
 
 def send_other_photos(chat_id, object_name, is_private=True):
 	media = []
@@ -259,10 +264,15 @@ def send_alien_photos(chat_id, alien_name, is_private=True):
 	else:
 		if is_private: bot.send_message(chat_id, f"{alien_name}.\nА где а нет")
 
-def create_game_message(game_id, creator_id, comment, dlc_list):
+def create_game_message(game_id, creator_id, comment, dlc_list, game_players):
 	creator = bot.get_chat(creator_id).username or f"User{creator_id}"
 	dlc_str = ", ".join(dlc_list) if dlc_list else "Без дополнений"
 	text = f"Новая игра #{game_id}\nСоздатель: @{creator}\nКомментарий: {comment}\nДополнения: {dlc_str}\nВремя: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+
+	if game_players.get(game_id):
+		text += "\nИгроки: "
+		for i in game_players[game_id]:
+			text += '\n'+ (i.username if i.username else i.first_name)
 
 	keyboard = InlineKeyboardMarkup()
 	keyboard.add(InlineKeyboardButton("Присоединиться", callback_data=f"join_game:{game_id}"))
@@ -328,7 +338,11 @@ def analysis_handler(message):
 
 @bot.message_handler(commands=['site'])
 def site_message(message):
-	bot.reply_to(message, 'Омагад!!! https://t.me/addemoji/CosmicEncounter')
+	keyboard = InlineKeyboardMarkup()
+	keyboard.add(InlineKeyboardButton(text="Сайт", url="https://3g.stariybog.ru/cc/"))
+	keyboard.add(InlineKeyboardButton(text="Эмоджи", url="https://t.me/addemoji/CosmicEncounter"))
+
+	bot.reply_to(message, 'Омагад!!!\nСайт со статистикой - https://3g.stariybog.ru/cc/\nЭмоджи Космик Енкаунтер - https://t.me/addemoji/CosmicEncounter', reply_markup=keyboard)
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
@@ -426,22 +440,25 @@ def party_menu(message):
 	except Exception as e:
 		logging.error(f"Ошибка в party_menu: {e}")
 
+def generate_dlc_keyboard(creator_id):
+	dlcs = pending_games.get(creator_id, {'dlcs': set()})['dlcs']
+	keyboard = InlineKeyboardMarkup(row_width=2)
+	for dlc in DLC_LIST:
+		text = f"✅ {dlc.capitalize()}" if dlc in dlcs else dlc.capitalize()
+		keyboard.add(InlineKeyboardButton(text, callback_data=f"dlc:{creator_id}:{dlc}"))
+	keyboard.add(InlineKeyboardButton("Создать игру", callback_data=f"create_game:{creator_id}"))
+	return keyboard
+
 def handle_game_comment(message, creator_id):
 	comment = message.text.strip()
 	pending_games[creator_id] = {'comment': comment, 'dlcs': set()}
-	keyboard = InlineKeyboardMarkup(row_width=2)
-	for dlc in DLC_LIST:
-		keyboard.add(InlineKeyboardButton(dlc.capitalize(), callback_data=f"dlc:{creator_id}:{dlc}"))
-	keyboard.add(InlineKeyboardButton("Создать игру", callback_data=f"create_game:{creator_id}"))
-
-	bot.send_message(message.chat.id, "Выберите дополнения (можно несколько):", reply_markup=keyboard)
+	bot.send_message(message.chat.id, "Выберите дополнения (можно несколько):", reply_markup=generate_dlc_keyboard(creator_id))
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call: CallbackQuery):
 	try:
 		data = call.data.split(":")
 		action = data[0]
-
 		if action == "alien":
 			_, alien_name, page_str = data
 			page = int(page_str)
@@ -488,6 +505,21 @@ def callback_handler(call: CallbackQuery):
 			send_rating_request(call.message.chat.id, game_id, player_id, is_winner)
 			bot.delete_message(call.message.chat.id, call.message.message_id)
 			bot.answer_callback_query(call.id, "Выберите новую оценку")
+
+		elif action == "deletegame":
+			_, game_id = data
+			game_id = int(game_id)
+			game = get_game(game_id)
+			if len(get_game_players(game_id)) > 2:
+				bot.answer_callback_query(call.id, "Игру нельзя удалить - она не пустая")
+				return
+			if game['creator_id'] == call.from_user.id:
+				delete_game(game_id)
+				bot.answer_callback_query(call.id, "Игра удалена и восстановлению не подлежит")
+				player_games = get_player_stats(call.from_user.id)
+				send_history_page(call.message.chat.id, player_games, 0, call.message.message_id)
+			else:
+				bot.answer_callback_query(call.id, "Нэт, ты не создатель")
 
 		elif action == "history":
 			_, page_str = data
@@ -568,8 +600,22 @@ def callback_handler(call: CallbackQuery):
 
 		elif action == "dlc":
 			creator_id, dlc = data[1], data[2]
-			pending_games.setdefault(int(creator_id), {'comment': '', 'dlcs': set()})['dlcs'].add(dlc)
-			bot.answer_callback_query(call.id, f"Добавлено: {dlc}")
+			creator_id = int(creator_id)
+			if creator_id != call.from_user.id:
+				bot.answer_callback_query(call.id, "Только создатель может выбирать дополнения!")
+				return
+			dlcs = pending_games.setdefault(creator_id, {'comment': '', 'dlcs': set()})['dlcs']
+			if dlc in dlcs:
+				dlcs.remove(dlc)
+				bot.answer_callback_query(call.id, f"Убрано: {dlc}")
+			else:
+				dlcs.add(dlc)
+				bot.answer_callback_query(call.id, f"Добавлено: {dlc}")
+			bot.edit_message_reply_markup(
+				chat_id=call.message.chat.id,
+				message_id=call.message.message_id,
+				reply_markup=generate_dlc_keyboard(creator_id)
+			)
 
 		elif action == "create_game":
 			creator_id = int(data[1])
@@ -582,7 +628,9 @@ def callback_handler(call: CallbackQuery):
 			comment = pending_games[creator_id]['comment']
 			dlc_list = list(pending_games[creator_id]['dlcs'])
 			game_id = create_game(comment, dlc_list, creator_id)
-			text, keyboard = create_game_message(game_id, creator_id, comment, dlc_list)
+
+			text, keyboard = create_game_message(game_id, creator_id, comment, dlc_list, pending_game_players)
+			pending_game_players[game_id] = []
 			bot.send_message(call.message.chat.id, text, reply_markup=keyboard)
 			bot.delete_message(call.message.chat.id, call.message.message_id)
 			del pending_games[creator_id]
@@ -597,10 +645,26 @@ def callback_handler(call: CallbackQuery):
 			if is_player_in_game(game_id, player_id):
 				leave_from_game(game_id, player_id)
 				bot.answer_callback_query(call.id, "Вы вышли из игры!")
-				return
-			bot.send_message(player_id, f"Введите имя пришельца")
-			waitlist[player_id] = {'action':'select_alien', 'game_id':game_id}
-			bot.answer_callback_query(call.id, "Выберите пришельца")
+				n = 0
+				for i in pending_game_players[game_id]:
+					if i.id == player_id:
+						pending_game_players[game_id].pop(n)
+					n+=1
+				bot.send_message(call.message.chat.id, f"чупеп, {pending_game_players}")
+
+			else:
+				join_game(game_id, player_id)
+				bot.send_message(player_id, f"Введите имя пришельца")
+				waitlist[player_id] = {'action':'select_alien', 'game_id':game_id}
+				bot.answer_callback_query(call.id, "Выберите пришельца")
+				pending_game_players[game_id].append(call.from_user)
+
+			game_data = get_game(game_id)
+			creator_id = game_data['creator_id']
+			dlc_list = game_data['dlc'].split(', ')
+			comment = game_data['comment']
+			text, keyboard = create_game_message(game_id, creator_id, comment, dlc_list, pending_game_players)
+			bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id, text=text, reply_markup=keyboard)
 
 		elif action == "select_alien":
 			_, alien_name, page_str, game_id, player_id = data
