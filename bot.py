@@ -241,7 +241,7 @@ def send_alien_photos(chat_id, alien_name, is_private=True):
 			if alien_stats == []: return
 
 			winrate = len([i for i in alien_stats if i['is_winner']]) / games_count * 100
-			avg_est = sum([i['estimation'] for i in alien_stats])
+			avg_est = sum([i['estimation'] or 0 for i in alien_stats])
 
 			games_ids = [i['game_id'] for i in alien_stats]
 			other_estimations = []
@@ -266,6 +266,7 @@ def send_alien_photos(chat_id, alien_name, is_private=True):
 		except Exception as e:
 			logging.error(f"Ошибка при отправке альбома: {e}")
 			bot.send_message(chat_id, "Ошибка при отправке изображений")
+			raise
 	else:
 		if is_private: bot.send_message(chat_id, f"{alien_name}.\nА где а нет")
 
@@ -809,6 +810,7 @@ def send_alien_image(message):
 	except Exception as e:
 		logging.error(f"Ошибка в send_alien_image: {e}")
 		bot.reply_to(message, "Произошла ошибка при обработке запроса.")
+		raise
 
 
 if __name__ == '__main__':
