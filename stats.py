@@ -187,10 +187,11 @@ def get_player_stats(player_id):
 						player_id,
 						alien,
 						estimation,
-						is_winner
+						is_winner,
+						comment
 					FROM game_players
-					WHERE game_id = %s AND player_id != %s
-				""", (game_id, player_id))
+					WHERE game_id = %s
+				""", (game_id,))
 				game['opponents'] = cur.fetchall()
 
 				if game['player_id'] is None:
@@ -201,3 +202,11 @@ def get_player_stats(player_id):
 
 			return games
 
+def set_player_comment(game_id, player_id, comment):
+	with get_connection() as conn:
+		with conn.cursor() as cur:
+			cur.execute("""
+				UPDATE game_players
+				SET comment = %s
+				WHERE game_id = %s AND player_id = %s
+			""", (comment, game_id, player_id))

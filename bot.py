@@ -22,7 +22,7 @@ pending_games = {}
 pending_game_players = {}
 waitlist = {}
 selected_winners = {}
-
+pending_comments = {}
 
 def send_paginated_keyboard(chat_id, message_id, items: list, page: int, item_prefix: str, page_prefix: str, item_label: str, items_per_page: int = 8, row_width: int = 2, callback_func=None, page_callback_func=None):
 	total_pages = math.ceil(len(items) / items_per_page)
@@ -139,11 +139,13 @@ def send_history_page(chat_id, player_games, page, message_id=None):
 		f'🎮 Игра #{game["game_id"]} {"🏆 Победа!" if game["am_i_winner"] else "❌ Поражение"}\n'
 		f'👽 Ты играл за: {game["my_alien"].capitalize() if game["my_alien"] else "Nonono"}\n'
 		f'⭐ Твоя оценка: {game["my_estimation"]}/5\n'
+		f'💬 Название игры: {game["comment"] or "—"}\n'
 		f'🗓️ Дата: {game["date"].strftime("%d.%m.%Y %H:%M")}\n\n'
-		'🤼‍♂️ Противники:\n'
+		'👥 Игроки:\n'
 	)
-	estimations.append(game["my_estimation"])
 
+	estimations.append(game["my_estimation"])
+	comments_text = ''
 	for opp in game['opponents']:
 		tg = bot.get_chat(opp['player_id'])
 		tg_name = f'@{tg.username} ({tg.first_name})' if tg.username else f"{tg.first_name}"
@@ -151,12 +153,14 @@ def send_history_page(chat_id, player_games, page, message_id=None):
 		estimation = f'{opp["estimation"]}/5⭐' if opp["estimation"] is not None else "—"
 		estimations.append(opp["estimation"])
 		response += f'• 👽 {opp["alien"].capitalize()} {status} ({tg_name}) — {estimation}\n'
+		if opp["comment"]:
+			comments_text += f'{tg_name} -  {opp["comment"]}\n'
 
 	try: response += f'\n🌟 Оценка партии: {format_integer(round(sum([e for e in estimations if e is not None]) / len([e for e in estimations if e is not None]), 2))}\n'
 	except: pass
 	response += f'\n🧩 Дополнения: {game["dlc"] or "—"}\n'
-	response += f'💬 Комментарий: {game["comment"] or "—"}\n'
-
+	if comments_text:
+		response += '📝 Комментарии:\n'+comments_text
 	keyboard = InlineKeyboardMarkup(row_width=3)
 	keyboard.add(InlineKeyboardButton(
 		"✏️ Изменить оценку",
@@ -175,6 +179,7 @@ def send_history_page(chat_id, player_games, page, message_id=None):
 	if player_id == creator_id and len(get_game_players(game['game_id'])) <= 2:
 		keyboard.add(InlineKeyboardButton("Удалить игру", callback_data=f"deletegame:{game['game_id']}"))
 
+	keyboard.add(InlineKeyboardButton("📝 Оставить комментарий", callback_data=f"comment_game:{game['game_id']}"))
 	if message_id:
 		bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=response, reply_markup=keyboard)
 	else:
@@ -275,9 +280,9 @@ def create_game_message(game_id, creator_id, comment, dlc_list, game_players):
 			text += '\n'+ (i.username if i.username else i.first_name)
 
 	keyboard = InlineKeyboardMarkup()
-	keyboard.add(InlineKeyboardButton("Присоединиться", callback_data=f"join_game:{game_id}"))
+	keyboard.add(InlineKeyboardButton("Присоединиться/Выйти", callback_data=f"join_game:{game_id}"))
+	keyboard.add(InlineKeyboardButton("Проверка", callback_data=f"check_game:{game_id}"))
 	keyboard.add(InlineKeyboardButton("Завершить игру", callback_data=f"end_game:{game_id}:{creator_id}"))
-
 	return text, keyboard
 
 def send_winner_selection(chat_id, game_id):
@@ -503,7 +508,6 @@ def callback_handler(call: CallbackQuery):
 			game_id, is_winner = map(int, data[1:3])
 			player_id = call.from_user.id
 			send_rating_request(call.message.chat.id, game_id, player_id, is_winner)
-			bot.delete_message(call.message.chat.id, call.message.message_id)
 			bot.answer_callback_query(call.id, "Выберите новую оценку")
 
 		elif action == "deletegame":
@@ -532,6 +536,12 @@ def callback_handler(call: CallbackQuery):
 
 			send_history_page(call.message.chat.id, player_games, page, call.message.message_id)
 			bot.answer_callback_query(call.id)
+
+		elif action == "comment_game":
+			_, game_id = data
+			game_id = int(game_id)
+			pending_comments[call.from_user.id] = game_id
+			bot.send_message(call.message.chat.id, f"Напиши комментарий к игре #{game_id}:")
 
 		elif action == "add_achieve":
 			_, achieve_index, player_id = data
@@ -636,6 +646,18 @@ def callback_handler(call: CallbackQuery):
 			del pending_games[creator_id]
 			bot.answer_callback_query(call.id)
 
+		elif action == "check_game":
+			game_id = int(data[1])
+			r_message = ''
+			players = get_game_players(game_id)
+			for i in players:
+				if not i['alien']:
+					r_message += f"Типуля @{bot.get_chat(i['player_id']).username} не выбрал пришельца!\n"
+				else:
+					r_message += f"@{bot.get_chat(i['player_id']).username} выбрал персонажа \"{i['alien'].capitalize()}\"\n"
+			bot.send_message(call.message.chat.id, r_message or "Никто не пришел играть в кк...")
+			bot.answer_callback_query(call.id)
+
 		elif action == "join_game":
 			game_id = int(data[1])
 			player_id = call.from_user.id
@@ -650,7 +672,6 @@ def callback_handler(call: CallbackQuery):
 					if i.id == player_id:
 						pending_game_players[game_id].pop(n)
 					n+=1
-				bot.send_message(call.message.chat.id, f"чупеп, {pending_game_players}")
 
 			else:
 				join_game(game_id, player_id)
@@ -746,6 +767,15 @@ def catch_custom_emoji(message):
 				custom_emoji_id = ent.custom_emoji_id
 				bot.send_message(message.chat.id, f'Эмоджи: `\"{message.text.split(":")[-1]}\": {custom_emoji_id},`', parse_mode='Markdown')
 
+
+@bot.message_handler(func=lambda m: m.from_user.id in pending_comments)
+def save_comment_handler(message):
+	game_id = pending_comments.pop(message.from_user.id)
+	comment = message.text.strip()
+
+	set_player_comment(game_id, message.from_user.id, comment)
+
+	bot.send_message(message.chat.id, f"Комментарий к игре #{game_id} сохранён ✅")
 
 @bot.message_handler(func=lambda message: message.chat.id == message.from_user.id)
 def send_alien_image(message):
