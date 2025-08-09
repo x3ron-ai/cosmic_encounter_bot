@@ -74,13 +74,19 @@ def join_game(game_id, player_id, alien_name=None):
 		if alien_name not in aliens:
 			raise ValueError("Unknown alien name")
 
-	with get_connection() as conn:
-		with conn.cursor() as cur:
-			cur.execute("""
-				INSERT INTO game_players (game_id, player_id, alien, estimation, is_winner)
-				VALUES (%s, %s, %s, NULL, NULL)
-				ON CONFLICT DO NOTHING
-			""", (game_id, player_id, alien_name))
+		with get_connection() as conn:
+			with conn.cursor() as cur:
+				cur.execute("""
+					UPDATE game_players SET alien=%s where game_id=%s AND player_id=%s
+				""", (alien_name, game_id, player_id))
+	else:
+			with get_connection() as conn:
+				with conn.cursor() as cur:
+					cur.execute("""
+						INSERT INTO game_players (game_id, player_id, alien, estimation, is_winner)
+						VALUES (%s, %s, NULL, NULL, NULL)
+						ON CONFLICT DO NOTHING
+					""", (game_id, player_id))
 
 def leave_from_game(game_id, player_id):
 	with get_connection() as conn:
