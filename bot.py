@@ -265,8 +265,6 @@ def send_alien_photos(chat_id, alien_name, is_private=True):
 
 		except Exception as e:
 			logging.error(f"Ошибка при отправке альбома: {e}")
-			bot.send_message(chat_id, "Ошибка при отправке изображений")
-			raise
 	else:
 		if is_private: bot.send_message(chat_id, f"{alien_name}.\nА где а нет")
 
@@ -441,7 +439,7 @@ def user_profile(message):
 @bot.message_handler(commands=['party'])
 def party_menu(message):
 	try:
-		msg = bot.reply_to(message, "Введите комментарий к игре:")
+		msg = bot.reply_to(message, "Введите название к игре:")
 		bot.register_next_step_handler(msg, handle_game_comment, message.from_user.id)
 	except Exception as e:
 		logging.error(f"Ошибка в party_menu: {e}")
@@ -738,14 +736,21 @@ def callback_handler(call: CallbackQuery):
 		elif action == "finalize_game":
 			game_id = int(data[1])
 			winners = selected_winners.get(game_id, set())
+			players = get_game_players(game_id)
 
-			for player in get_game_players(game_id):
+			for player in players:
 				is_winner = player['player_id'] in winners
 				logging.debug(is_winner)
 				set_player_result(game_id, player['player_id'], is_winner, None)
 				send_rating_request(player['player_id'], game_id, player['player_id'], int(is_winner))
 
 			bot.delete_message(call.message.chat.id, call.message.message_id)
+			game_members = ""
+			for i in players:
+				is_winner = i['player_id'] in winners
+				game_members += f"{'🏆' if is_winner else '❌'} @{bot.get_chat(i['player_id']).username} - {i['alien']}\n"
+			bot.send_message(call.message.chat.id, f"Игра #{game_id} завершена!\nПоставьте оценку игре в личных сообщениях\nУчастники игры:\n{game_members}")
+
 			selected_winners.pop(game_id, None)
 			bot.answer_callback_query(call.id, "Игра завершена")
 
@@ -757,8 +762,6 @@ def callback_handler(call: CallbackQuery):
 
 	except Exception as e:
 		logging.error(f"Ошибка в callback_handler: {e}")
-		bot.answer_callback_query(call.id, "Произошла ошибка")
-		raise
 
 @bot.message_handler(commands=['e'])
 def catch_custom_emoji(message):
@@ -787,7 +790,7 @@ def send_alien_image(message):
 			game_id = pending_data['game_id']
 			loc_rev = {k.lower(): i for i, k in LOCALIZATION_EN.items()}
 
-			alien = message.text.lower().strip()
+			alien = message.text.lower().strip().replace('ё', 'е')
 			if alien in loc_rev:
 				alien = loc_rev[alien]
 			if alien not in ALIENS:
@@ -809,8 +812,6 @@ def send_alien_image(message):
 		send_alien_photos(message.chat.id, alien_name, message.chat.id == message.from_user.id)
 	except Exception as e:
 		logging.error(f"Ошибка в send_alien_image: {e}")
-		bot.reply_to(message, "Произошла ошибка при обработке запроса.")
-		raise
 
 
 if __name__ == '__main__':
