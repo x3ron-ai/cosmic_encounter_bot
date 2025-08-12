@@ -58,7 +58,7 @@ class CallbackHandler:
 
 	@register_action("tech")
 	def handle_tech(self, call: CallbackQuery, data):
-		self._handle_page_with_photo(call, data, TECHNOLOGIES, send_other_photos, send_technologies_page, f'FFFFFFFFFFFFFFFF{data[0]}')
+		self._handle_page_with_photo(call, data, TECHNOLOGIES, send_other_photos, send_technologies_page)
 
 	@register_action("hazard")
 	def handle_hazard(self, call: CallbackQuery, data):

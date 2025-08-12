@@ -5,6 +5,7 @@ from stats import *
 from utils import *
 from bot_instance import bot
 from callback_handler import setup_callback_handler
+import random
 
 setup_callback_handler(bot)
 
