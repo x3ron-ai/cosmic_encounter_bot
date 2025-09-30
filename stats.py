@@ -33,7 +33,7 @@ def check_player(telegram_id):
 def add_player(tg_user):
 	with get_connection() as conn:
 		with conn.cursor() as cur:
-			cur.execute("INSERT INTO players (id, username, first_name) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING", (tg_user.id, tg_user.username or '', tg_user.firstname or ''))
+			cur.execute("INSERT INTO players (id, username, first_name) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING", (tg_user.id, tg_user.username or '', tg_user.first_name or ''))
 
 def get_alien_stats(alien):
 	with get_connection() as conn:
