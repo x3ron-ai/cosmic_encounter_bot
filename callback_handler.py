@@ -331,6 +331,12 @@ class CallbackHandler:
 		self.bot.delete_message(call.message.chat.id, call.message.message_id)
 		self.bot.answer_callback_query(call.id, "Оценка сохранена")
 
+	@register_action("random")
+	def handle_random(self, call: CallbackQuery, data):
+		text, keyboard = show_random_alien()
+		self.bot.answer_callback_query(call.id, "random...")
+		self.bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id, text=text, reply_markup=keyboard)
+
 def setup_callback_handler(bot):
 	handler = CallbackHandler(bot)
 	@bot.callback_query_handler(func=lambda call: True)

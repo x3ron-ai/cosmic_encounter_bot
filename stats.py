@@ -52,6 +52,7 @@ def delete_game(game_id):
 	with get_connection() as conn:
 		with conn.cursor() as cur:
 			cur.execute("DELETE FROM game_players WHERE game_id = %s", (game_id,))
+			conn.commit()
 			cur.execute("DELETE FROM games WHERE id=%s", (game_id,))
 			conn.commit()
 			return ":("

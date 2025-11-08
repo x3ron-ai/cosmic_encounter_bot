@@ -4,6 +4,7 @@ from cc_data import ALIENS, ESSENCE_ALIENS, FLARES, TECHNOLOGIES, HAZARDS, STATI
 from stats import *
 from datetime import datetime
 from bot_instance import bot
+import random
 
 ITEMS_PER_PAGE = 10
 BUTTONS_PER_ROW = 2
@@ -274,6 +275,12 @@ def send_alien_photos(chat_id, alien_name, is_private=True):
 			logging.error(f"Ошибка при отправке альбома: {e}")
 	else:
 		if is_private: bot.send_message(chat_id, f"{alien_name}.\nА где а нет")
+
+def show_random_alien():
+	keyboard = InlineKeyboardMarkup()
+	keyboard.add(InlineKeyboardButton("🎲 Перебросить", callback_data=f"random"))
+	random_alien = random.choice(list(ALIENS.keys())).capitalize()
+	return f"🎲 Рандомный пришелец:\n{random_alien}", keyboard
 
 def create_game_message(game_id, creator_id, comment, dlc_list, game_players):
 	creator = bot.get_chat(creator_id).username or f"User{creator_id}"

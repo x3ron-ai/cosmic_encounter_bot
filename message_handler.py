@@ -112,6 +112,11 @@ def catch_custom_emoji(message):
 				custom_emoji_id = ent.custom_emoji_id
 				bot.send_message(message.chat.id, f'Эмоджи: `\"{message.text.split(":")[-1]}\": {custom_emoji_id},`', parse_mode='Markdown')
 
+@bot.message_handler(commands=['random', 'рандом'])
+def show_random_alien_handler(message):
+	text, kb = show_random_alien()
+	bot.reply_to(message, text, reply_markup=kb)
+
 @bot.message_handler(func=lambda m: m.from_user.id in pending_comments)
 def save_comment_handler(message):
 	game_id = pending_comments.pop(message.from_user.id)
